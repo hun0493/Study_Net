@@ -101,7 +101,7 @@ export default function SubjectSelect() {
   };
 
   /* ===============================
-     🎯 과목 선택
+      과목 선택
   ================================ */
   const selectSubject = (subject: string) => {
     router.replace({

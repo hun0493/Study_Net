@@ -7,7 +7,6 @@ import {
   Dimensions,
   KeyboardAvoidingView,
   Platform,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -15,38 +14,56 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-const { height: SCREEN_HEIGHT } = Dimensions.get("window");
+const { height: SCREEN_H } = Dimensions.get("window");
 
+/* ─────────────────────────────────────────────
+   스텝 데이터
+───────────────────────────────────────────── */
 const STEPS = [
   {
-    tag: "STEP 01",
-    title: "로그인에 사용할\n",
-    bold: "이메일 주소",
+    tag: "STEP 01 / 03",
+    title: "로그인에 사용할",
+    highlight: "이메일 주소",
     suffix: "를 알려주세요",
-    placeholder: "email@example.com",
-    hint: null,
+    placeholder: "example@studynet.com",
+    icon: "mail-outline" as const,
+    keyboard: "email-address" as const,
   },
   {
-    tag: "STEP 02",
-    title: "보안을 위해\n",
-    bold: "비밀번호",
-    suffix: "를 설정할까요?",
-    placeholder: "비밀번호를 입력해주세요",
-    hint: null,
+    tag: "STEP 02 / 03",
+    title: "계정 보안을 위한",
+    highlight: "비밀번호",
+    suffix: "를 설정해주세요",
+    placeholder: "8자 이상 입력",
+    icon: "lock-closed-outline" as const,
+    keyboard: "default" as const,
   },
   {
-    tag: "STEP 03",
-    title: "스터디넷에서 사용할\n",
-    bold: "닉네임",
+    tag: "STEP 03 / 03",
+    title: "스터디넷에서 쓸",
+    highlight: "닉네임",
     suffix: "을 정해주세요",
-    placeholder: "2자 이상 입력",
-    hint: null,
+    placeholder: "2자 이상 12자 이하",
+    icon: "person-outline" as const,
+    keyboard: "default" as const,
   },
 ];
 
-export default function SignupStep() {
+const PW_CHECKS = (pw: string) => [
+  { label: "8자 이상", pass: pw.length >= 8 },
+  { label: "영문 포함", pass: /[a-zA-Z]/.test(pw) },
+  { label: "숫자 포함", pass: /[0-9]/.test(pw) },
+  { label: "특수문자", pass: /[!@#$%^&*]/.test(pw) },
+];
+
+/* ─────────────────────────────────────────────
+   메인 컴포넌트
+───────────────────────────────────────────── */
+export default function SignupScreen() {
   const router = useRouter();
+
   const [step, setStep] = useState(1);
   const [email, setEmail] = useState("");
   const [pw, setPw] = useState("");
@@ -55,67 +72,60 @@ export default function SignupStep() {
   const [focused, setFocused] = useState(false);
   const [done, setDone] = useState(false);
 
+  /* 콘텐츠 전환 애니메이션 */
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const slideAnim = useRef(new Animated.Value(0)).current;
 
+  /* 완료 화면 페이드인 */
+  const doneFade = useRef(new Animated.Value(0)).current;
+  const doneScale = useRef(new Animated.Value(0.88)).current;
+
   const currentValue = step === 1 ? email : step === 2 ? pw : nick;
   const currentSet = step === 1 ? setEmail : step === 2 ? setPw : setNick;
-
-  const pwChecks = [
-    { label: "8자 이상", pass: pw.length >= 8 },
-    { label: "영문 포함", pass: /[a-zA-Z]/.test(pw) },
-    { label: "숫자 포함", pass: /[0-9]/.test(pw) },
-    { label: "특수문자 포함", pass: /[!@#$%^&*]/.test(pw) },
-  ];
+  const pwChecks = PW_CHECKS(pw);
 
   const isNextDisabled = () => {
-    if (step === 1) return !email.includes("@") || email.length < 5;
+    if (step === 1) return !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
     if (step === 2) return pw.length < 8;
-    if (step === 3) return nick.length < 2;
+    if (step === 3) return nick.length < 2 || nick.length > 12;
     return true;
   };
 
-  const animateTransition = (cb: () => void) => {
+  /* 스텝 전환 */
+  const animateStep = (cb: () => void, dir: "forward" | "back" = "forward") => {
+    const outY = dir === "forward" ? -28 : 28;
+    const inY = dir === "forward" ? 28 : -28;
+
     Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: 180,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: -24,
-        duration: 180,
-        useNativeDriver: true,
-      }),
+      Animated.timing(fadeAnim, { toValue: 0, duration: 160, useNativeDriver: true }),
+      Animated.timing(slideAnim, { toValue: outY, duration: 160, useNativeDriver: true }),
     ]).start(() => {
       cb();
-      slideAnim.setValue(24);
+      slideAnim.setValue(inY);
       Animated.parallel([
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 220,
-          useNativeDriver: true,
-        }),
-        Animated.timing(slideAnim, {
-          toValue: 0,
-          duration: 220,
-          useNativeDriver: true,
-        }),
+        Animated.timing(fadeAnim, { toValue: 1, duration: 220, useNativeDriver: true }),
+        Animated.timing(slideAnim, { toValue: 0, duration: 220, useNativeDriver: true }),
       ]).start();
     });
   };
 
   const handleNext = () => {
     if (step < 3) {
-      animateTransition(() => setStep((s) => s + 1));
+      const nextStep = step + 1;
+      animateStep(() => setStep(nextStep));
     } else {
       setDone(true);
+      Animated.parallel([
+        Animated.timing(doneFade, { toValue: 1, duration: 500, useNativeDriver: true }),
+        Animated.spring(doneScale, { toValue: 1, useNativeDriver: true, tension: 80, friction: 8 }),
+      ]).start();
     }
   };
 
   const handleBack = () => {
     if (step > 1) {
-      animateTransition(() => setStep((s) => s - 1));
+      const prevStep = step - 1;
+      animateStep(() => setStep(prevStep), "back");
     } else {
       router.back();
     }
@@ -124,162 +134,232 @@ export default function SignupStep() {
   /* ── 완료 화면 ── */
   if (done) {
     return (
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView style={s.safe} edges={["top", "bottom"]}>
         <StatusBar style="light" />
-        <View style={styles.doneScreen}>
-          <View style={styles.doneIconWrap}>
-            <Text style={styles.doneIconEmoji}>🎉</Text>
+        <View style={s.bgCircle1} />
+        <View style={s.bgCircle2} />
+
+        <Animated.View
+          style={[s.doneWrap, { opacity: doneFade, transform: [{ scale: doneScale }] }]}
+        >
+          {/* 아이콘 */}
+          <View style={s.doneIconOuter}>
+            <View style={s.doneIconInner}>
+              <Ionicons name="checkmark" size={36} color="#6366f1" />
+            </View>
           </View>
-          <Text style={styles.doneTitle}>가입 완료!</Text>
-          <Text style={styles.doneDesc}>
-            스터디넷에 오신 걸 환영해요,{"\n"}
-            <Text style={styles.doneNick}>{nick}</Text>님 🙌
+
+          {/* 텍스트 */}
+          <Text style={s.doneTitle}>가입 완료! 🎉</Text>
+          <Text style={s.doneDesc}>
+            스터디넷에 오신 걸 환영해요{"\n"}
+            <Text style={s.doneNick}>{nick}</Text>님과 함께{"\n"}
+            열심히 공부해봐요 🙌
           </Text>
+
+          {/* 정보 카드 */}
+          <View style={s.doneCard}>
+            <View style={s.doneCardRow}>
+              <Ionicons name="mail-outline" size={15} color="#6366f1" />
+              <Text style={s.doneCardLabel}>이메일</Text>
+              <Text style={s.doneCardValue}>{email}</Text>
+            </View>
+            <View style={s.doneCardDivider} />
+            <View style={s.doneCardRow}>
+              <Ionicons name="person-outline" size={15} color="#6366f1" />
+              <Text style={s.doneCardLabel}>닉네임</Text>
+              <Text style={s.doneCardValue}>{nick}</Text>
+            </View>
+          </View>
+
+          {/* 버튼 */}
           <TouchableOpacity
-            style={styles.doneBtn}
+            style={s.doneBtn}
+            activeOpacity={0.85}
             onPress={() => router.replace("/")}
           >
-            <Text style={styles.doneBtnText}>시작하기</Text>
+            <Text style={s.doneBtnText}>시작하기</Text>
+            <Ionicons name="arrow-forward" size={18} color="#fff" style={{ marginLeft: 6 }} />
           </TouchableOpacity>
-        </View>
+        </Animated.View>
       </SafeAreaView>
     );
   }
 
   /* ── 메인 ── */
+  const step_ = STEPS[step - 1];
+
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={s.safe} edges={["top", "bottom"]}>
       <StatusBar style="light" />
 
-      {/* 진행 바 */}
-      <View style={styles.progressTrack}>
-        <Animated.View
-          style={[styles.progressFill, { width: `${(step / 3) * 100}%` }]}
-        />
-      </View>
+      {/* 배경 장식 */}
+      <View style={s.bgCircle1} />
+      <View style={s.bgCircle2} />
 
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
         keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
       >
-        {/* 스크롤: 상단 콘텐츠만 */}
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={s.scroll}
           bounces={false}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
           {/* 내비게이션 */}
-          <View style={styles.navBar}>
-            <TouchableOpacity onPress={handleBack} style={styles.backBtn}>
-              <Ionicons name="arrow-back" size={24} color="#94a3b8" />
+          <View style={s.navBar}>
+            <TouchableOpacity onPress={handleBack} style={s.backBtn}>
+              <Ionicons name="arrow-back" size={20} color="#94a3b8" />
             </TouchableOpacity>
-            <View style={styles.stepBadge}>
-              <Text style={styles.stepBadgeText}>{step} / 3</Text>
+            <View style={s.stepBadge}>
+              <Text style={s.stepBadgeText}>{step} / 3</Text>
             </View>
           </View>
 
-          {/* 타이틀 (애니메이션) */}
+          {/* 타이틀 */}
           <Animated.View
-            style={[
-              styles.textGroup,
-              { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
-            ]}
+            style={[s.titleGroup, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}
           >
-            <Text style={styles.stepTag}>{STEPS[step - 1].tag}</Text>
-            <Text style={styles.mainTitle}>
-              {STEPS[step - 1].title}
-              <Text style={styles.boldText}>{STEPS[step - 1].bold}</Text>
-              {STEPS[step - 1].suffix}
+            <View style={s.tagRow}>
+              <View style={s.tagBadge}>
+                <Text style={s.tagText}>{step_.tag}</Text>
+              </View>
+            </View>
+            <Text style={s.title}>
+              {step_.title}{"\n"}
+              <Text style={s.titleHighlight}>{step_.highlight}</Text>
+              <Text style={s.titleSuffix}>{step_.suffix}</Text>
             </Text>
           </Animated.View>
 
-          {/* 인풋 (애니메이션) */}
+          {/* 입력 필드 */}
           <Animated.View
-            style={{
-              opacity: fadeAnim,
-              transform: [{ translateY: slideAnim }],
-            }}
+            style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}
           >
-            <View
-              style={[styles.inputWrap, focused && styles.inputWrapFocused]}
-            >
+            <View style={[s.field, focused && s.fieldFocused]}>
+              {/* 좌측 아이콘 */}
+              <View style={[s.fieldIcon, focused && s.fieldIconActive]}>
+                <Ionicons
+                  name={step_.icon}
+                  size={17}
+                  color={focused ? "#818cf8" : "#64748b"}
+                />
+              </View>
+
               <TextInput
-                style={styles.input}
-                placeholder={STEPS[step - 1].placeholder}
-                placeholderTextColor="#334155"
+                style={s.fieldInput}
+                placeholder={step_.placeholder}
+                placeholderTextColor="#475569"
                 autoFocus
                 secureTextEntry={step === 2 && !showPw}
                 value={currentValue}
                 onChangeText={currentSet}
                 autoCapitalize="none"
-                keyboardType={step === 1 ? "email-address" : "default"}
+                keyboardType={step_.keyboard}
+                maxLength={step === 3 ? 12 : undefined}
+                returnKeyType={step < 3 ? "next" : "done"}
+                onSubmitEditing={!isNextDisabled() ? handleNext : undefined}
                 onFocus={() => setFocused(true)}
                 onBlur={() => setFocused(false)}
               />
+
+              {/* 비밀번호 눈 아이콘 */}
               {step === 2 && (
                 <TouchableOpacity
                   onPress={() => setShowPw((v) => !v)}
-                  style={styles.eyeBtn}
+                  style={s.eyeBtn}
                 >
                   <Ionicons
-                    name={showPw ? "eye-off-outline" : "eye-outline"}
-                    size={20}
+                    name={showPw ? "eye-outline" : "eye-off-outline"}
+                    size={18}
                     color="#475569"
                   />
                 </TouchableOpacity>
               )}
+
+              {/* 닉네임 카운터 */}
+              {step === 3 && nick.length > 0 && (
+                <Text style={s.counter}>{nick.length}/12</Text>
+              )}
             </View>
 
+            {/* 이메일 유효성 힌트 */}
+            {step === 1 && email.length > 0 && (
+              <View style={s.hintRow}>
+                <Ionicons
+                  name={
+                    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+                      ? "checkmark-circle"
+                      : "alert-circle-outline"
+                  }
+                  size={14}
+                  color={
+                    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+                      ? "#34d399"
+                      : "#f87171"
+                  }
+                />
+                <Text
+                  style={[
+                    s.hintText,
+                    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+                      ? s.hintOk
+                      : s.hintErr,
+                  ]}
+                >
+                  {/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+                    ? "올바른 이메일 형식이에요"
+                    : "이메일 형식을 확인해주세요"}
+                </Text>
+              </View>
+            )}
+
             {/* 비밀번호 체크리스트 */}
-            {step === 2 && (
-              <View style={styles.checkList}>
+            {step === 2 && pw.length > 0 && (
+              <View style={s.checkGrid}>
                 {pwChecks.map((c, i) => (
-                  <View key={i} style={styles.checkItem}>
+                  <View key={i} style={s.checkItem}>
                     <Ionicons
                       name={c.pass ? "checkmark-circle" : "ellipse-outline"}
-                      size={15}
-                      color={c.pass ? "#6366f1" : "#334155"}
+                      size={14}
+                      color={c.pass ? "#818cf8" : "#334155"}
                     />
-                    <Text
-                      style={[styles.checkText, c.pass && styles.checkActive]}
-                    >
+                    <Text style={[s.checkText, c.pass && s.checkActive]}>
                       {c.label}
                     </Text>
                   </View>
                 ))}
               </View>
             )}
-
-            {/* 닉네임 카운터 */}
-            {step === 3 && (
-              <Text style={styles.counter}>{nick.length} / 12</Text>
-            )}
           </Animated.View>
         </ScrollView>
 
-        {/* 하단 버튼: KeyboardAvoidingView 안, ScrollView 밖에 고정 */}
-        <View style={styles.bottomFixed}>
+        {/* 하단 버튼 고정 */}
+        <View style={s.bottom}>
           <TouchableOpacity
-            style={[
-              styles.actionBtn,
-              isNextDisabled() && styles.actionBtnDisabled,
-            ]}
+            style={[s.nextBtn, isNextDisabled() && s.nextBtnDisabled]}
             onPress={handleNext}
             disabled={isNextDisabled()}
             activeOpacity={0.85}
           >
-            <Text style={styles.actionBtnText}>
-              {step === 3 ? "가입하기" : "다음 단계"}
-            </Text>
-            {!isNextDisabled() && (
-              <Ionicons
-                name={step === 3 ? "checkmark" : "arrow-forward"}
-                size={18}
-                color="#fff"
-                style={{ marginLeft: 6 }}
-              />
+            {isNextDisabled() ? (
+              <Text style={s.nextBtnTextDisabled}>
+                {step === 3 ? "가입하기" : "다음 단계"}
+              </Text>
+            ) : (
+              <>
+                <Text style={s.nextBtnText}>
+                  {step === 3 ? "가입하기" : "다음 단계"}
+                </Text>
+                <Ionicons
+                  name={step === 3 ? "checkmark" : "arrow-forward"}
+                  size={18}
+                  color="#fff"
+                  style={{ marginLeft: 6 }}
+                />
+              </>
             )}
           </TouchableOpacity>
         </View>
@@ -288,24 +368,38 @@ export default function SignupStep() {
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: {
+/* ─────────────────────────────────────────────
+   스타일
+───────────────────────────────────────────── */
+const s = StyleSheet.create({
+  safe: {
     flex: 1,
-    backgroundColor: "#0b1220",
+    backgroundColor: "#060d1a",
   },
 
-  /* 진행 바 */
-  progressTrack: {
-    height: 3,
-    backgroundColor: "#1e293b",
+  /* 배경 장식 */
+  bgCircle1: {
+    position: "absolute",
+    width: 320,
+    height: 320,
+    borderRadius: 160,
+    backgroundColor: "#312e81",
+    opacity: 0.2,
+    top: -80,
+    right: -100,
   },
-  progressFill: {
-    height: "100%",
-    backgroundColor: "#6366f1",
-    borderRadius: 99,
+  bgCircle2: {
+    position: "absolute",
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: "#1e3a5f",
+    opacity: 0.25,
+    bottom: 60,
+    left: -60,
   },
 
-  scrollContent: {
+  scroll: {
     flexGrow: 1,
     paddingHorizontal: 24,
     paddingBottom: 20,
@@ -322,7 +416,9 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 12,
-    backgroundColor: "#1e293b",
+    backgroundColor: "#0f172a",
+    borderWidth: 1,
+    borderColor: "#1e293b",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -342,62 +438,111 @@ const styles = StyleSheet.create({
   },
 
   /* 타이틀 */
-  textGroup: {
-    marginTop: SCREEN_HEIGHT * 0.04,
-    marginBottom: SCREEN_HEIGHT * 0.05,
+  titleGroup: {
+    marginTop: SCREEN_H * 0.04,
+    marginBottom: SCREEN_H * 0.05,
   },
-  stepTag: {
-    color: "#6366f1",
-    fontSize: 12,
-    fontWeight: "800",
-    letterSpacing: 2,
-    marginBottom: 10,
-  },
-  mainTitle: {
-    fontSize: SCREEN_HEIGHT > 700 ? 26 : 22,
-    color: "#94a3b8",
-    lineHeight: SCREEN_HEIGHT > 700 ? 40 : 34,
-    fontWeight: "400",
-  },
-  boldText: {
-    fontWeight: "800",
-    color: "#f1f5f9",
-  },
-
-  /* 인풋 */
-  inputWrap: {
+  tagRow: {
     flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#1e293b",
-    borderRadius: 18,
-    borderWidth: 1.5,
-    borderColor: "#2d3f55",
-    paddingHorizontal: 18,
     marginBottom: 14,
   },
-  inputWrapFocused: {
-    borderColor: "#6366f1",
-    backgroundColor: "#1a2540",
+  tagBadge: {
+    backgroundColor: "rgba(99,102,241,0.15)",
+    borderRadius: 20,
+    paddingVertical: 5,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: "rgba(99,102,241,0.35)",
   },
-  input: {
-    flex: 1,
-    fontSize: 17,
+  tagText: {
+    color: "#818cf8",
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 1.5,
+  },
+  title: {
+    fontSize: SCREEN_H > 700 ? 26 : 22,
+    color: "#64748b",
+    lineHeight: SCREEN_H > 700 ? 40 : 34,
+    fontWeight: "400",
+  },
+  titleHighlight: {
+    fontWeight: "900",
     color: "#f1f5f9",
-    paddingVertical: SCREEN_HEIGHT * 0.022,
+    letterSpacing: -0.5,
+  },
+  titleSuffix: {
+    fontWeight: "400",
+    color: "#64748b",
+  },
+
+  /* 입력 필드 */
+  field: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#0f172a",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    marginBottom: 12,
+    overflow: "hidden",
+  },
+  fieldFocused: {
+    borderColor: "#6366f1",
+    backgroundColor: "#0a1628",
+  },
+  fieldIcon: {
+    width: 48,
+    height: 54,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRightWidth: 1,
+    borderRightColor: "#1e293b",
+  },
+  fieldIconActive: {
+    borderRightColor: "#6366f1",
+    backgroundColor: "rgba(99,102,241,0.07)",
+  },
+  fieldInput: {
+    flex: 1,
+    height: 54,
+    paddingHorizontal: 14,
+    color: "#f1f5f9",
+    fontSize: 15,
     fontWeight: "600",
   },
   eyeBtn: {
-    paddingLeft: 10,
-    paddingVertical: 4,
+    paddingHorizontal: 14,
+    height: 54,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  counter: {
+    paddingRight: 14,
+    color: "#475569",
+    fontSize: 12,
+    fontWeight: "600",
   },
 
-  /* 비번 체크리스트 */
-  checkList: {
+  /* 이메일 힌트 */
+  hintRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingLeft: 4,
+    marginTop: 2,
+  },
+  hintText: { fontSize: 12, fontWeight: "500" },
+  hintOk: { color: "#34d399" },
+  hintErr: { color: "#f87171" },
+
+  /* 비밀번호 체크 */
+  checkGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 10,
     paddingLeft: 4,
-    marginTop: 4,
+    marginTop: 6,
   },
   checkItem: {
     flexDirection: "row",
@@ -406,107 +551,147 @@ const styles = StyleSheet.create({
   },
   checkText: {
     color: "#334155",
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "500",
   },
-  checkActive: {
-    color: "#818cf8",
-  },
+  checkActive: { color: "#818cf8" },
 
-  /* 닉네임 카운터 */
-  counter: {
-    color: "#334155",
-    fontSize: 12,
-    textAlign: "right",
-    paddingRight: 4,
-    marginTop: 4,
-  },
-
-  /* 하단 버튼 고정 */
-  bottomFixed: {
+  /* 하단 버튼 */
+  bottom: {
     paddingHorizontal: 24,
     paddingBottom: Platform.OS === "ios" ? 12 : 24,
     paddingTop: 12,
-    backgroundColor: "#0b1220",
+    backgroundColor: "#060d1a",
   },
-  actionBtn: {
+  nextBtn: {
     backgroundColor: "#6366f1",
-    paddingVertical: 17,
-    borderRadius: 20,
+    height: 56,
+    borderRadius: 16,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    flexDirection: "row",
     shadowColor: "#6366f1",
-    shadowOpacity: 0.35,
-    shadowRadius: 14,
+    shadowOpacity: 0.45,
+    shadowRadius: 16,
     shadowOffset: { width: 0, height: 4 },
-    elevation: 8,
+    elevation: 6,
   },
-  actionBtnDisabled: {
-    backgroundColor: "#1e293b",
+  nextBtnDisabled: {
+    backgroundColor: "#0f172a",
     shadowOpacity: 0,
     elevation: 0,
+    borderWidth: 1,
+    borderColor: "#1e293b",
   },
-  actionBtnText: {
+  nextBtnText: {
     color: "#fff",
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: "700",
-    letterSpacing: 0.2,
+    letterSpacing: 0.3,
+  },
+  nextBtnTextDisabled: {
+    color: "#334155",
+    fontSize: 16,
+    fontWeight: "700",
   },
 
   /* 완료 화면 */
-  doneScreen: {
+  doneWrap: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    paddingHorizontal: 32,
+    paddingHorizontal: 28,
   },
-  doneIconWrap: {
-    width: 90,
-    height: 90,
-    borderRadius: 28,
-    backgroundColor: "#1e293b",
+  doneIconOuter: {
+    width: 100,
+    height: 100,
+    borderRadius: 32,
+    backgroundColor: "rgba(99,102,241,0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(99,102,241,0.25)",
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 28,
-    borderWidth: 1,
-    borderColor: "#334155",
   },
-  doneIconEmoji: {
-    fontSize: 40,
+  doneIconInner: {
+    width: 68,
+    height: 68,
+    borderRadius: 22,
+    backgroundColor: "rgba(99,102,241,0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(99,102,241,0.4)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   doneTitle: {
     color: "#f1f5f9",
-    fontSize: 28,
-    fontWeight: "800",
-    marginBottom: 12,
+    fontSize: 30,
+    fontWeight: "900",
     letterSpacing: -0.5,
+    marginBottom: 12,
   },
   doneDesc: {
     color: "#64748b",
-    fontSize: 16,
+    fontSize: 15,
     textAlign: "center",
     lineHeight: 26,
-    marginBottom: 40,
+    marginBottom: 32,
   },
   doneNick: {
     color: "#818cf8",
-    fontWeight: "700",
+    fontWeight: "800",
+  },
+
+  /* 완료 정보 카드 */
+  doneCard: {
+    width: "100%",
+    backgroundColor: "#0f172a",
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    padding: 20,
+    marginBottom: 32,
+  },
+  doneCardRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  doneCardLabel: {
+    color: "#475569",
+    fontSize: 13,
+    fontWeight: "600",
+    width: 48,
+  },
+  doneCardValue: {
+    color: "#f1f5f9",
+    fontSize: 13,
+    fontWeight: "600",
+    flex: 1,
+  },
+  doneCardDivider: {
+    height: 1,
+    backgroundColor: "#1e293b",
+    marginVertical: 14,
   },
   doneBtn: {
     backgroundColor: "#6366f1",
-    paddingVertical: 16,
-    paddingHorizontal: 48,
-    borderRadius: 18,
+    width: "100%",
+    height: 56,
+    borderRadius: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     shadowColor: "#6366f1",
-    shadowOpacity: 0.35,
-    shadowRadius: 14,
+    shadowOpacity: 0.45,
+    shadowRadius: 16,
     shadowOffset: { width: 0, height: 4 },
-    elevation: 8,
+    elevation: 6,
   },
   doneBtnText: {
     color: "#fff",
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: "700",
+    letterSpacing: 0.3,
   },
 });
