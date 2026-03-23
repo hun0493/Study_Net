@@ -383,12 +383,17 @@ export default function MainScreen() {
 
           {/* ── 빠른 메뉴 ── */}
           <Text style={[styles.sectionTitle, { marginTop: 4 }]}>빠른 메뉴</Text>
-          {/* ✅ 수정: 통계/달력/랭킹/그룹 + 각 고유 색상 */}
           <View style={styles.menuGrid}>
             <QuickMenu icon="bar-chart-outline" label="통계" color="#60A5FA" comingSoon />
             <QuickMenu icon="calendar-outline"  label="달력" color="#34D399" comingSoon />
             <QuickMenu icon="trophy-outline"    label="랭킹" color="#FBBF24" comingSoon />
-            <QuickMenu icon="people-outline"    label="그룹" color="#A78BFA" comingSoon />
+            {/* ✅ 그룹: comingSoon 제거, onPress 연결 */}
+            <QuickMenu
+              icon="people-outline"
+              label="그룹"
+              color="#A78BFA"
+              onPress={() => router.push("/Group")}
+            />
           </View>
 
           {/* ── 최근 활동 ── */}
@@ -450,12 +455,18 @@ export default function MainScreen() {
   );
 }
 
-// ✅ 수정: color prop 추가, 아이콘/배경 색상 개별 적용
+// ✅ onPress prop 추가
 function QuickMenu({
-  icon, label, color, comingSoon,
-}: { icon: any; label: string; color: string; comingSoon?: boolean }) {
+  icon, label, color, comingSoon, onPress,
+}: {
+  icon: any; label: string; color: string; comingSoon?: boolean; onPress?: () => void;
+}) {
   return (
-    <TouchableOpacity style={styles.quickItem} activeOpacity={comingSoon ? 1 : 0.7}>
+    <TouchableOpacity
+      style={styles.quickItem}
+      activeOpacity={comingSoon ? 1 : 0.7}
+      onPress={!comingSoon ? onPress : undefined}
+    >
       <View style={[
         styles.quickIconBox,
         { borderColor: color + "44", backgroundColor: color + "11" },
@@ -529,7 +540,6 @@ const styles = StyleSheet.create({
   sectionTitle: { color: C.textTertiary, fontSize: 9, fontWeight: "700", letterSpacing: 2, textTransform: "uppercase", marginBottom: 12 },
   menuGrid: { flexDirection: "row", justifyContent: "space-between", marginBottom: 28 },
   quickItem: { alignItems: "center", gap: 7 },
-  // ✅ 수정: 배경/테두리 색상은 인라인으로 처리
   quickIconBox: { width: 54, height: 54, borderRadius: 14, borderWidth: 1, justifyContent: "center", alignItems: "center" },
   quickLabel: { color: C.textSecondary, fontSize: 11, fontWeight: "500" },
   comingSoonBadge: { backgroundColor: C.surfaceAlt, borderWidth: 1, borderColor: C.border, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2 },
