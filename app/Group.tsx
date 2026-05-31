@@ -33,7 +33,7 @@ const C = {
   textSecondary:"#94A3B8",
   textTertiary: "#4B5E77",
   textAccent:   "#60A5FA",
-  purple:       "#8B5CF6",
+  purple: "#7C6CF2",
 };
 
 // ── 목업 데이터 ──────────────────────────────────────
@@ -76,10 +76,51 @@ const MOCK_ROOMS = [
 ];
 
 const MOCK_MEMBERS_4 = [
-  { id: "1", name: "김민준", subject: "수학", color: "#60A5FA", timer: "01:23:45", muted: false, speaking: true  },
-  { id: "2", name: "이서연", subject: "영어", color: "#A78BFA", timer: "00:45:12", muted: true,  speaking: false },
-  { id: "3", name: "박지호", subject: "과학", color: "#34D399", timer: "02:01:33", muted: false, speaking: false },
-  { id: "4", name: "나",     subject: "물리", color: "#60A5FA", timer: "00:58:07", muted: false, speaking: false, isMe: true },
+  {
+    id: "1",
+    name: "김민준",
+    subject: "수학",
+    color: "#6EA8FE",
+    timer: "01:23:45",
+    muted: false,
+    speaking: true,
+    status: "집중중",
+    statusColor: "#10B981",
+  },
+  {
+    id: "2",
+    name: "이서연",
+    subject: "영어",
+    color: "#9F8CFF",
+    timer: "00:45:12",
+    muted: true,
+    speaking: false,
+    status: "쉬는중",
+    statusColor: "#F59E0B",
+  },
+  {
+    id: "3",
+    name: "박지호",
+    subject: "과학",
+    color: "#34D399",
+    timer: "02:01:33",
+    muted: false,
+    speaking: false,
+    status: "딥포커스",
+    statusColor: "#60A5FA",
+  },
+  {
+    id: "4",
+    name: "나",
+    subject: "물리",
+    color: "#6EA8FE",
+    timer: "00:58:07",
+    muted: false,
+    speaking: false,
+    isMe: true,
+    status: "집중중",
+    statusColor: "#10B981",
+  },
 ];
 
 const EMOJIS = ["👍", "🔥", "☕", "💪"];

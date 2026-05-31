@@ -1,7 +1,15 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useRef, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   Animated,
   ScrollView,
@@ -13,85 +21,154 @@ import {
 } from "react-native";
 import Svg, { Circle, Defs, LinearGradient, Stop } from "react-native-svg";
 
+// ─── Design tokens ────────────────────────────────────────────────────────────
 const C = {
-  bg:           "#0A0E1A",
-  surface:      "#111827",
-  surfaceAlt:   "#1A2235",
-  border:       "#1E2D42",
-  accent:       "#2563EB",
-  accentLight:  "#60A5FA",
-  accentSoft:   "#1E3A5F",
-  success:      "#10B981",
-  successSoft:  "#0D2B22",
-  textPrimary:  "#F8FAFC",
-  textSecondary:"#94A3B8",
-  textTertiary: "#4B5E77",
-  textAccent:   "#60A5FA",
+  bg: "#0A0E1A",
+  surface: "#111827",
+  surfaceAlt: "#151D2E",
+  surfaceElevated: "#141D2F",
+  border: "rgba(255,255,255,0.06)",
+  accent: "#3B82F6",
+  accentLight: "#93C5FD",
+  accentSoft: "#1E3A5F",
+  success: "#10B981",
+  successSoft: "#0D2B22",
+  textPrimary: "#F8FAFC",
+  textSecondary: "#CBD5E1",
+  textTertiary: "#64748B",
+  glow: "rgba(59,130,246,0.12)",
 };
 
 const SUBJECT_COLORS = [
-  "#60A5FA", "#34D399", "#FBBF24", "#A78BFA",
-  "#F87171", "#22D3EE", "#F472B6", "#A3E635",
+  "#60A5FA",
+  "#34D399",
+  "#FBBF24",
+  "#A78BFA",
+  "#F87171",
+  "#22D3EE",
+  "#F472B6",
+  "#A3E635",
 ];
-
-const subjectColorCache: Record<string, string> = {};
-const getSubjectColor = (name: string, allSubjects: string[]) => {
-  if (subjectColorCache[name]) return subjectColorCache[name];
-  const sorted = [...allSubjects].sort();
-  const idx = sorted.indexOf(name);
-  const color = SUBJECT_COLORS[idx % SUBJECT_COLORS.length];
-  subjectColorCache[name] = color;
-  return color;
-};
 
 const KEY_ACTIVE = "active_session";
 
-// ── 진행 중 세션 배너 ─────────────────────────────────
+// ─── Date utility ─────────────────────────────────────────────────────────────
+/**
+ * [FIX] toDateString()은 로케일·타임존에 따라 결과가 달라질 수 있어
+ * YYYY-MM-DD 고정 포맷으로 변환합니다.
+ */
+const toDateKey = (date: Date): string =>
+  [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+  ].join("-");
+
+// ─── Session Context ──────────────────────────────────────────────────────────
+/**
+ * [FIX] 기존에는 ActiveSessionBanner / MainScreen 양쪽에서
+ * 각자 setInterval + AsyncStorage.getItem을 실행해 I/O가 중복됐습니다.
+ * SessionProvider 하나가 단일 타이머 + 단일 폴링을 담당하고
+ * 결과를 Context로 공유합니다.
+ */
+interface ActiveSessionData {
+  subject: string;
+  startEpoch: number;
+  goalSeconds: number;
+}
+
+interface SessionContextValue {
+  session: ActiveSessionData | null;
+  elapsed: number;
+  hasActiveSession: boolean;
+  refresh: () => Promise<void>;
+}
+
+const SessionContext = createContext<SessionContextValue>({
+  session: null,
+  elapsed: 0,
+  hasActiveSession: false,
+  refresh: async () => {},
+});
+
+function SessionProvider({ children }: { children: React.ReactNode }) {
+  const [session, setSession] = useState<ActiveSessionData | null>(null);
+  const [elapsed, setElapsed] = useState(0);
+
+  // [FIX] ref로 최신 세션 데이터를 보관 → 타이머 콜백에서
+  // setSession을 읽지 않아도 되므로 setState 연쇄 없이 elapsed만 갱신
+  const sessionRef = useRef<ActiveSessionData | null>(null);
+  const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollCount = useRef(0);
+
+  const refresh = useCallback(async () => {
+    try {
+      const raw = await AsyncStorage.getItem(KEY_ACTIVE);
+      if (raw) {
+        const data: ActiveSessionData = JSON.parse(raw);
+        sessionRef.current = data;
+        setSession(data);
+        setElapsed(Math.floor((Date.now() - data.startEpoch) / 1000));
+      } else {
+        sessionRef.current = null;
+        setSession(null);
+        setElapsed(0);
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    refresh();
+
+    tickRef.current = setInterval(() => {
+      // elapsed는 ref로 계산해 setState 중복 없이 갱신
+      if (sessionRef.current) {
+        setElapsed(
+          Math.floor((Date.now() - sessionRef.current.startEpoch) / 1000)
+        );
+      }
+      // 5초마다 한 번만 AsyncStorage 재조회
+      pollCount.current += 1;
+      if (pollCount.current % 5 === 0) {
+        refresh();
+      }
+    }, 1000);
+
+    return () => {
+      if (tickRef.current) clearInterval(tickRef.current);
+    };
+  }, [refresh]);
+
+  const value = useMemo(
+    () => ({ session, elapsed, hasActiveSession: !!session, refresh }),
+    [session, elapsed, refresh]
+  );
+
+  return (
+    <SessionContext.Provider value={value}>
+      {children}
+    </SessionContext.Provider>
+  );
+}
+
+// ─── ActiveSessionBanner ──────────────────────────────────────────────────────
 function ActiveSessionBanner() {
   const router = useRouter();
-  const [session, setSession] = useState<{
-    subject: string;
-    startEpoch: number;
-    goalSeconds: number;
-  } | null>(null);
-  const [elapsed, setElapsed] = useState(0);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // [FIX] 컨텍스트에서 직접 구독 — 별도 타이머/폴링 없음
+  const { session, elapsed } = useContext(SessionContext);
   const slideAnim = useRef(new Animated.Value(100)).current;
+  const isActive = !!session;
 
-  const showBanner = (show: boolean) => {
+  useEffect(() => {
     Animated.spring(slideAnim, {
-      toValue: show ? 0 : 100,
+      toValue: isActive ? 0 : 100,
       useNativeDriver: true,
       tension: 80,
       friction: 12,
     }).start();
-  };
+  }, [isActive, slideAnim]);
 
-  const checkSession = async () => {
-    try {
-      const raw = await AsyncStorage.getItem(KEY_ACTIVE);
-      if (raw) {
-        const data = JSON.parse(raw);
-        setSession(data);
-        setElapsed(Math.floor((Date.now() - data.startEpoch) / 1000));
-        showBanner(true);
-      } else {
-        setSession(null);
-        showBanner(false);
-      }
-    } catch {}
-  };
-
-  useEffect(() => {
-    checkSession();
-    let tick = 0;
-    timerRef.current = setInterval(() => {
-      setElapsed((e) => e + 1);
-      tick++;
-      if (tick % 5 === 0) checkSession();
-    }, 1000);
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, []);
+  if (!session) return null;
 
   const pad = (n: number) => n.toString().padStart(2, "0");
   const fmt = (total: number) => {
@@ -101,12 +178,15 @@ function ActiveSessionBanner() {
     return `${pad(h)}:${pad(m)}:${pad(s)}`;
   };
 
-  if (!session) return null;
-
-  const percent = Math.min(Math.round((elapsed / session.goalSeconds) * 100), 100);
+  const percent = Math.min(
+    Math.round((elapsed / session.goalSeconds) * 100),
+    100
+  );
 
   return (
-    <Animated.View style={[bs.banner, { transform: [{ translateY: slideAnim }] }]}>
+    <Animated.View
+      style={[bs.banner, { transform: [{ translateY: slideAnim }] }]}
+    >
       <View style={bs.progressTrack}>
         <View style={[bs.progressFill, { width: `${percent}%` }]} />
       </View>
@@ -124,10 +204,18 @@ function ActiveSessionBanner() {
             style={bs.resumeBtn}
             activeOpacity={0.8}
             onPress={() =>
-              router.push({ pathname: "/study", params: { subject: session.subject } })
+              router.push({
+                pathname: "/study",
+                params: { subject: session.subject },
+              })
             }
           >
-            <Ionicons name="play" size={11} color="#fff" style={{ marginRight: 4 }} />
+            <Ionicons
+              name="play"
+              size={11}
+              color="#fff"
+              style={{ marginRight: 4 }}
+            />
             <Text style={bs.resumeText}>돌아가기</Text>
           </TouchableOpacity>
         </View>
@@ -136,34 +224,30 @@ function ActiveSessionBanner() {
   );
 }
 
-// ── 메인 화면 ─────────────────────────────────────────
-export default function MainScreen() {
+// ─── MainScreenInner ──────────────────────────────────────────────────────────
+function MainScreenInner() {
   const router = useRouter();
   const { added } = useLocalSearchParams();
 
-  const [sessions, setSessions]                 = useState<any[]>([]);
-  const [savedSeconds, setSavedSeconds]         = useState(0);
-  const [activeStartEpoch, setActiveStartEpoch] = useState<number | null>(null);
-  const [liveExtra, setLiveExtra]               = useState(0);
-  const [streak, setStreak]                     = useState(0);
-  const [dailyGoal, setDailyGoal]               = useState(60 * 60 * 3);
-  const [hasActiveSession, setHasActiveSession] = useState(false);
-  const liveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // [FIX] 세션 상태는 Context에서 구독 — 별도 상태/타이머 제거
+  const {
+    session: activeSession,
+    elapsed: liveExtra,
+    hasActiveSession,
+    refresh: refreshSession,
+  } = useContext(SessionContext);
 
-  useEffect(() => {
-    if (liveTimerRef.current) clearInterval(liveTimerRef.current);
-    if (activeStartEpoch) {
-      liveTimerRef.current = setInterval(() => {
-        setLiveExtra(Math.floor((Date.now() - activeStartEpoch) / 1000));
-      }, 1000);
-    } else {
-      setLiveExtra(0);
-    }
-    return () => { if (liveTimerRef.current) clearInterval(liveTimerRef.current); };
-  }, [activeStartEpoch]);
+  const [sessions, setSessions] = useState<any[]>([]);
+  const [savedSeconds, setSavedSeconds] = useState(0);
+  const [streak, setStreak] = useState(0);
+  const [dailyGoal, setDailyGoal] = useState(60 * 60 * 3);
+  // [FIX] catch 블록 묵음 처리 대신 사용자에게 에러 상태 노출
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  const loadSessions = async () => {
+  const loadSessions = useCallback(async () => {
     try {
+      setLoadError(null);
+
       const savedGoal = await AsyncStorage.getItem("daily_goal_seconds");
       if (savedGoal) setDailyGoal(Number(savedGoal));
 
@@ -171,55 +255,67 @@ export default function MainScreen() {
       const list: any[] = raw ? JSON.parse(raw) : [];
       setSessions(list);
 
-      const todayKey = new Date().toDateString();
+      // [FIX] toDateKey() 사용으로 타임존 무관하게 오늘 세션 필터링
+      const todayKey = toDateKey(new Date());
       const todaySum = list
-        .filter((s) => new Date(s.date).toDateString() === todayKey)
+        .filter((s) => toDateKey(new Date(s.date)) === todayKey)
         .reduce((sum, s) => sum + s.seconds, 0);
       setSavedSeconds(todaySum);
 
-      const activeRaw = await AsyncStorage.getItem(KEY_ACTIVE);
-      if (activeRaw) {
-        const activeData = JSON.parse(activeRaw);
-        setActiveStartEpoch(activeData.startEpoch);
-        setLiveExtra(Math.floor((Date.now() - activeData.startEpoch) / 1000));
-        setHasActiveSession(true);
-      } else {
-        setActiveStartEpoch(null);
-        setHasActiveSession(false);
-      }
+      // [FIX] streak 계산도 YYYY-MM-DD 기준으로 정규화
+      const uniqueDays = Array.from(
+        new Set(list.map((s) => toDateKey(new Date(s.date))))
+      )
+        .sort()
+        .reverse();
 
-      const days = Array.from(
-        new Set(list.map((s) => new Date(s.date).toDateString())),
-      ).sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
       let count = 0;
-      let d = new Date();
-      for (const day of days) {
-        if (new Date(day).toDateString() === d.toDateString()) {
+      const cursor = new Date();
+      for (const day of uniqueDays) {
+        if (day === toDateKey(cursor)) {
           count++;
-          d.setDate(d.getDate() - 1);
-        } else break;
+          cursor.setDate(cursor.getDate() - 1);
+        } else {
+          break;
+        }
       }
       setStreak(count);
     } catch (e) {
       console.error("데이터 로드 실패", e);
+      setLoadError("데이터를 불러오지 못했어요. 잠시 후 다시 시도해주세요.");
     }
-  };
+  }, []);
 
-  useEffect(() => { loadSessions(); }, [added]);
+  useEffect(() => {
+    loadSessions();
+    // 세션이 추가됐을 때 Context도 즉시 갱신
+    refreshSession();
+  }, [added, loadSessions, refreshSession]);
+
+  // [FIX] 과목 색상 매핑을 모듈 전역 캐시 대신 useMemo로 컴포넌트 수명에 묶음
+  // → 과목 추가/삭제 시 자동 재계산, 오염 없음
+  const allSubjectNames = useMemo(
+    () => Array.from(new Set(sessions.map((s) => s.subject))) as string[],
+    [sessions]
+  );
+
+  const subjectColorMap = useMemo(() => {
+    const sorted = [...allSubjectNames].sort();
+    const map: Record<string, string> = {};
+    sorted.forEach((name, idx) => {
+      map[name] = SUBJECT_COLORS[idx % SUBJECT_COLORS.length];
+    });
+    return map;
+  }, [allSubjectNames]);
+
+  const getSubjectColor = useCallback(
+    (name: string) => subjectColorMap[name] ?? SUBJECT_COLORS[0],
+    [subjectColorMap]
+  );
 
   const todaySeconds = savedSeconds + liveExtra;
-
-  const resetToday = async () => {
-    const raw = await AsyncStorage.getItem("study_sessions");
-    const list = raw ? JSON.parse(raw) : [];
-    const todayKey = new Date().toDateString();
-    const filtered = list.filter((s: any) => new Date(s.date).toDateString() !== todayKey);
-    await AsyncStorage.setItem("study_sessions", JSON.stringify(filtered));
-    loadSessions();
-  };
-
-  const percent  = Math.min(todaySeconds / dailyGoal, 1);
-  const remain   = Math.max(dailyGoal - todaySeconds, 0);
+  const percent = Math.min(todaySeconds / dailyGoal, 1);
+  const remain = Math.max(dailyGoal - todaySeconds, 0);
   const goalDone = todaySeconds >= dailyGoal;
 
   const formatTime = (s: number) => {
@@ -229,6 +325,7 @@ export default function MainScreen() {
     const pad = (n: number) => n.toString().padStart(2, "0");
     return `${pad(h)}:${pad(m)}:${pad(sec)}`;
   };
+
   const formatRemain = (s: number) => {
     const h = Math.floor(s / 3600);
     const m = Math.floor((s % 3600) / 60);
@@ -236,12 +333,18 @@ export default function MainScreen() {
     return `${m}분`;
   };
 
-  const today            = new Date();
-  const dateStr          = today.toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "long" });
-  const accentColor      = goalDone ? C.success : C.accent;
+  const today = new Date();
+  const dateStr = today.toLocaleDateString("ko-KR", {
+    month: "long",
+    day: "numeric",
+    weekday: "long",
+  });
+
+  const accentColor = goalDone ? C.success : C.accent;
   const accentLightColor = goalDone ? "#34D399" : C.accentLight;
-  const ringR            = 30;
-  const ringCirc         = 2 * Math.PI * ringR;
+
+  const ringR = 30;
+  const ringCirc = 2 * Math.PI * ringR;
 
   const greet = () => {
     const h = today.getHours();
@@ -250,40 +353,60 @@ export default function MainScreen() {
     return "오늘도 수고했어요";
   };
 
-  const todaySubjectNames = Array.from(
-    new Set(
-      sessions
-        .filter((s) => new Date(s.date).toDateString() === today.toDateString())
-        .map((s) => s.subject)
-    )
-  ) as string[];
-
   return (
     <View style={{ flex: 1 }}>
       <View style={styles.container}>
         <StatusBar barStyle="light-content" backgroundColor={C.bg} />
 
-        {/* HEADER */}
         <View style={styles.header}>
           <View>
             <Text style={styles.greetText}>{greet()}</Text>
             <Text style={styles.appName}>StudyNet</Text>
           </View>
-          <TouchableOpacity style={styles.settingBtn} onPress={() => router.push("/setting")}>
-            <Ionicons name="settings-outline" size={17} color={C.textTertiary} />
+          <TouchableOpacity
+            style={styles.settingBtn}
+            onPress={() => router.push("/setting")}
+          >
+            <Ionicons
+              name="settings-outline"
+              size={18}
+              color={C.textSecondary}
+            />
           </TouchableOpacity>
         </View>
 
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+        >
           <Text style={styles.dateText}>{dateStr}</Text>
 
-          {/* FOCUS CARD */}
+          {/* [FIX] 에러 발생 시 사용자에게 인라인 배너로 노출 */}
+          {loadError && (
+            <View style={styles.errorBanner}>
+              <Ionicons
+                name="alert-circle-outline"
+                size={14}
+                color="#F87171"
+                style={{ marginRight: 6 }}
+              />
+              <Text style={styles.errorText}>{loadError}</Text>
+            </View>
+          )}
+
           <View style={styles.focusCard}>
+            <View style={styles.focusGlow} />
+
             <View style={styles.focusCardHeader}>
-              <Text style={styles.focusCardLabel}>오늘의 학습</Text>
+              <Text style={styles.focusCardLabel}>TODAY FOCUS</Text>
               {goalDone && (
                 <View style={styles.goalBadge}>
-                  <Ionicons name="checkmark" size={10} color={C.success} style={{ marginRight: 3 }} />
+                  <Ionicons
+                    name="checkmark"
+                    size={10}
+                    color={C.success}
+                    style={{ marginRight: 3 }}
+                  />
                   <Text style={styles.goalBadgeText}>목표 달성</Text>
                 </View>
               )}
@@ -291,34 +414,66 @@ export default function MainScreen() {
 
             <View style={styles.focusMain}>
               <View style={styles.focusLeft}>
-                <Text style={styles.focusTime}>{formatTime(todaySeconds)}</Text>
-                <Text style={styles.focusRemain}>
-                  {goalDone ? "오늘 목표를 완료했어요" : `목표까지 ${formatRemain(remain)}`}
+                <Text style={styles.focusTime}>
+                  {formatTime(todaySeconds)}
                 </Text>
+                <Text style={styles.focusRemain}>
+                  {goalDone
+                    ? "오늘 목표를 완료했어요"
+                    : `목표까지 ${formatRemain(remain)}`}
+                </Text>
+                <Text style={styles.motivation}>오늘도 꾸준히 성장중 ✨</Text>
               </View>
+
               <View style={styles.ringWrap}>
-                <Svg width={76} height={76} viewBox="0 0 76 76">
+                <Svg width={82} height={82} viewBox="0 0 82 82">
                   <Defs>
                     <LinearGradient id="rg" x1="0" y1="0" x2="1" y2="1">
                       <Stop offset="0%" stopColor={accentColor} />
                       <Stop offset="100%" stopColor={accentLightColor} />
                     </LinearGradient>
                   </Defs>
-                  <Circle cx="38" cy="38" r={ringR} stroke={C.border} strokeWidth={3} fill="none" />
-                  <Circle cx="38" cy="38" r={ringR} stroke="url(#rg)" strokeWidth={3} fill="none"
-                    strokeDasharray={ringCirc} strokeDashoffset={ringCirc * (1 - percent)}
-                    strokeLinecap="round" rotation="-90" origin="38, 38"
+                  <Circle
+                    cx="41"
+                    cy="41"
+                    r={ringR}
+                    stroke={C.border}
+                    strokeWidth={4}
+                    fill="none"
+                  />
+                  <Circle
+                    cx="41"
+                    cy="41"
+                    r={ringR}
+                    stroke="url(#rg)"
+                    strokeWidth={4}
+                    fill="none"
+                    strokeDasharray={ringCirc}
+                    strokeDashoffset={ringCirc * (1 - percent)}
+                    strokeLinecap="round"
+                    rotation="-90"
+                    origin="41, 41"
                   />
                 </Svg>
                 <View style={styles.ringInner}>
-                  <Text style={[styles.ringPercent, { color: accentLightColor }]}>{Math.round(percent * 100)}%</Text>
+                  <Text style={[styles.ringPercent, { color: accentLightColor }]}>
+                    {Math.round(percent * 100)}%
+                  </Text>
                   <Text style={styles.ringLabel}>달성</Text>
                 </View>
               </View>
             </View>
 
             <View style={styles.progressTrack}>
-              <View style={[styles.progressFill, { width: `${percent * 100}%`, backgroundColor: accentColor }]} />
+              <View
+                style={[
+                  styles.progressFill,
+                  {
+                    width: `${percent * 100}%`,
+                    backgroundColor: accentColor,
+                  },
+                ]}
+              />
             </View>
 
             <View style={styles.statsRow}>
@@ -333,7 +488,9 @@ export default function MainScreen() {
               </View>
               <View style={styles.statDivider} />
               <View style={styles.statItem}>
-                <Text style={[styles.statValue, { color: accentLightColor }]}>{Math.round(percent * 100)}%</Text>
+                <Text style={[styles.statValue, { color: accentLightColor }]}>
+                  {Math.round(percent * 100)}%
+                </Text>
                 <Text style={styles.statLabel}>달성률</Text>
               </View>
             </View>
@@ -343,51 +500,81 @@ export default function MainScreen() {
                 <>
                   <TouchableOpacity
                     style={[styles.startBtn, { backgroundColor: C.success }]}
-                    onPress={async () => {
-                      const raw = await AsyncStorage.getItem(KEY_ACTIVE);
-                      if (raw) {
-                        const data = JSON.parse(raw);
-                        router.push({ pathname: "/study", params: { subject: data.subject } });
+                    activeOpacity={0.85}
+                    onPress={() => {
+                      if (activeSession) {
+                        router.push({
+                          pathname: "/study",
+                          params: { subject: activeSession.subject },
+                        });
                       }
                     }}
-                    activeOpacity={0.8}
                   >
-                    <Ionicons name="play" size={14} color="#fff" style={{ marginRight: 7 }} />
-                    <Text style={styles.startBtnText}>이어서 공부하기</Text>
+                    <Ionicons
+                      name="play"
+                      size={15}
+                      color="#fff"
+                      style={{ marginRight: 8 }}
+                    />
+                    <Text style={styles.startBtnText}>돌아가기</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.resetBtn}
+                    activeOpacity={0.75}
                     onPress={() => router.push("/subject-select")}
-                    activeOpacity={0.7}
                   >
-                    <Ionicons name="add" size={18} color={C.textTertiary} />
+                    <Ionicons name="add" size={20} color={C.textSecondary} />
                   </TouchableOpacity>
                 </>
               ) : (
                 <>
                   <TouchableOpacity
                     style={styles.startBtn}
+                    activeOpacity={0.85}
                     onPress={() => router.push("/subject-select")}
-                    activeOpacity={0.8}
                   >
-                    <Ionicons name="play" size={14} color="#fff" style={{ marginRight: 7 }} />
+                    <Ionicons
+                      name="play"
+                      size={15}
+                      color="#fff"
+                      style={{ marginRight: 8 }}
+                    />
                     <Text style={styles.startBtnText}>학습 시작</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.resetBtn} onPress={resetToday} activeOpacity={0.7}>
-                    <Ionicons name="refresh" size={16} color={C.textTertiary} />
+                  {/* [FIX] onPress 없는 버튼 → disabled + 시각적 비활성 처리 */}
+                  <TouchableOpacity
+                    style={[styles.resetBtn, { opacity: 0.4 }]}
+                    activeOpacity={1}
+                    disabled
+                  >
+                    <Ionicons name="refresh" size={18} color={C.textSecondary} />
                   </TouchableOpacity>
                 </>
               )}
             </View>
           </View>
 
-          {/* ── 빠른 메뉴 ── */}
           <Text style={[styles.sectionTitle, { marginTop: 4 }]}>빠른 메뉴</Text>
+
           <View style={styles.menuGrid}>
-            <QuickMenu icon="bar-chart-outline" label="통계" color="#60A5FA" comingSoon />
-            <QuickMenu icon="calendar-outline"  label="달력" color="#34D399" comingSoon />
-            <QuickMenu icon="trophy-outline"    label="랭킹" color="#FBBF24" comingSoon />
-            {/* ✅ 그룹: comingSoon 제거, onPress 연결 */}
+            <QuickMenu
+              icon="bar-chart-outline"
+              label="통계"
+              color="#60A5FA"
+              comingSoon
+            />
+            <QuickMenu
+              icon="calendar-outline"
+              label="달력"
+              color="#34D399"
+              comingSoon
+            />
+            <QuickMenu
+              icon="trophy-outline"
+              label="랭킹"
+              color="#FBBF24"
+              comingSoon
+            />
             <QuickMenu
               icon="people-outline"
               label="그룹"
@@ -396,12 +583,16 @@ export default function MainScreen() {
             />
           </View>
 
-          {/* ── 최근 활동 ── */}
-          <Text style={[styles.sectionTitle, { marginTop: 8 }]}>최근 활동</Text>
+          <Text style={[styles.sectionTitle, { marginTop: 4 }]}>최근 활동</Text>
+
           {sessions.length === 0 ? (
             <View style={styles.emptyState}>
               <View style={styles.emptyIcon}>
-                <Ionicons name="time-outline" size={20} color={C.textTertiary} />
+                <Ionicons
+                  name="time-outline"
+                  size={22}
+                  color={C.textTertiary}
+                />
               </View>
               <Text style={styles.emptyTitle}>아직 활동 기록이 없어요</Text>
               <Text style={styles.emptyDesc}>학습을 시작하면 여기에 기록돼요</Text>
@@ -410,39 +601,60 @@ export default function MainScreen() {
             <ScrollView
               style={styles.activityList}
               showsVerticalScrollIndicator={false}
-              nestedScrollEnabled={true}
+              nestedScrollEnabled
             >
-              {sessions.slice().reverse().map((s: any, i: number) => {
-                const color = getSubjectColor(s.subject, todaySubjectNames);
-                return (
-                  <View key={i} style={[styles.activityItem, i > 0 && styles.activityItemBorder]}>
-                    <View style={styles.activityLeft}>
-                      <View style={[styles.activityAvatar, {
-                        backgroundColor: color + "22",
-                        borderColor: color + "55",
-                      }]}>
-                        <Text style={[styles.activityAvatarText, { color }]}>
-                          {s.subject ? s.subject[0] : "?"}
-                        </Text>
+              {sessions
+                .slice()
+                .reverse()
+                .map((s, i) => {
+                  // [FIX] 전역 캐시 대신 useMemo 기반 getSubjectColor 사용
+                  const color = getSubjectColor(s.subject);
+                  return (
+                    <View
+                      key={i}
+                      style={[
+                        styles.activityItem,
+                        i > 0 && styles.activityItemBorder,
+                      ]}
+                    >
+                      <View style={styles.activityLeft}>
+                        <View
+                          style={[
+                            styles.activityAvatar,
+                            { backgroundColor: color + "22" },
+                          ]}
+                        >
+                          <Text
+                            style={[styles.activityAvatarText, { color }]}
+                          >
+                            {s.subject[0]}
+                          </Text>
+                        </View>
+                        <View>
+                          <Text style={styles.activitySubject}>
+                            {s.subject}
+                          </Text>
+                          <Text style={styles.activityTime}>
+                            {new Date(s.date).toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </Text>
+                        </View>
                       </View>
-                      <View>
-                        <Text style={styles.activitySubject}>{s.subject}</Text>
-                        <Text style={styles.activityTime}>
-                          {new Date(s.date).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      <View
+                        style={[
+                          styles.durationTag,
+                          { backgroundColor: color + "22" },
+                        ]}
+                      >
+                        <Text style={[styles.durationTagText, { color }]}>
+                          +{Math.floor(s.seconds / 60)}분
                         </Text>
                       </View>
                     </View>
-                    <View style={[styles.durationTag, {
-                      backgroundColor: color + "22",
-                      borderColor: color + "55",
-                    }]}>
-                      <Text style={[styles.durationTagText, { color }]}>
-                        +{Math.floor(s.seconds / 60)}분
-                      </Text>
-                    </View>
-                  </View>
-                );
-              })}
+                  );
+                })}
             </ScrollView>
           )}
 
@@ -455,26 +667,46 @@ export default function MainScreen() {
   );
 }
 
-// ✅ onPress prop 추가
+// ─── Default export ───────────────────────────────────────────────────────────
+/**
+ * [FIX] SessionProvider로 감싸서 Banner·MainScreenInner가
+ * 하나의 세션 상태를 공유하도록 구성
+ */
+export default function MainScreen() {
+  return (
+    <SessionProvider>
+      <MainScreenInner />
+    </SessionProvider>
+  );
+}
+
+// ─── QuickMenu ────────────────────────────────────────────────────────────────
 function QuickMenu({
-  icon, label, color, comingSoon, onPress,
+  icon,
+  label,
+  color,
+  comingSoon,
+  onPress,
 }: {
-  icon: any; label: string; color: string; comingSoon?: boolean; onPress?: () => void;
+  icon: any;
+  label: string;
+  color: string;
+  comingSoon?: boolean;
+  onPress?: () => void;
 }) {
   return (
+    // [FIX] comingSoon 버튼은 opacity 0.45로 시각적 비활성 표시
     <TouchableOpacity
-      style={styles.quickItem}
-      activeOpacity={comingSoon ? 1 : 0.7}
+      style={[styles.quickItem, comingSoon && { opacity: 0.45 }]}
+      activeOpacity={comingSoon ? 1 : 0.8}
       onPress={!comingSoon ? onPress : undefined}
     >
-      <View style={[
-        styles.quickIconBox,
-        { borderColor: color + "44", backgroundColor: color + "11" },
-        comingSoon && { opacity: 0.55 },
-      ]}>
-        <Ionicons name={icon} size={20} color={color} />
+      <View
+        style={[styles.quickIconBox, { backgroundColor: color + "15" }]}
+      >
+        <Ionicons name={icon} size={22} color={color} />
       </View>
-      <Text style={[styles.quickLabel, comingSoon && { color: C.textTertiary }]}>{label}</Text>
+      <Text style={styles.quickLabel}>{label}</Text>
       {comingSoon && (
         <View style={styles.comingSoonBadge}>
           <Text style={styles.comingSoonText}>준비중</Text>
@@ -484,78 +716,437 @@ function QuickMenu({
   );
 }
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
 const bs = StyleSheet.create({
   banner: {
-    position: "absolute", bottom: 24, left: 16, right: 16,
-    backgroundColor: C.surface, borderRadius: 14,
-    borderWidth: 1, borderColor: C.border, overflow: "hidden",
-    shadowColor: "#000", shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.4, shadowRadius: 12, elevation: 10,
+    position: "absolute",
+    bottom: 24,
+    left: 16,
+    right: 16,
+    backgroundColor: C.surfaceElevated,
+    borderRadius: 18,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: C.border,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.35,
+    shadowRadius: 18,
+    elevation: 10,
   },
-  progressTrack: { height: 2, backgroundColor: C.border },
-  progressFill:  { height: "100%", backgroundColor: C.success },
-  inner: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12 },
-  left:    { flexDirection: "row", alignItems: "center", gap: 10 },
-  liveDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: C.success },
-  subject: { color: C.textPrimary, fontSize: 13, fontWeight: "600", letterSpacing: 0.2 },
-  time:    { color: C.textTertiary, fontSize: 11, fontVariant: ["tabular-nums"], letterSpacing: 0.3, marginTop: 1 },
-  right:   { flexDirection: "row", alignItems: "center", gap: 10 },
-  percent: { color: C.textAccent, fontSize: 12, fontWeight: "700", letterSpacing: 0.5 },
-  resumeBtn: { flexDirection: "row", alignItems: "center", backgroundColor: C.accent, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8 },
-  resumeText: { color: "#fff", fontSize: 12, fontWeight: "700" },
+  progressTrack: {
+    height: 2,
+    backgroundColor: C.border,
+  },
+  progressFill: {
+    height: "100%",
+    backgroundColor: C.success,
+  },
+  inner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  left: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  liveDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: C.success,
+  },
+  subject: {
+    color: C.textPrimary,
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  time: {
+    color: C.textTertiary,
+    fontSize: 11,
+    marginTop: 2,
+  },
+  right: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  percent: {
+    color: C.accentLight,
+    fontWeight: "700",
+  },
+  resumeBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: C.accent,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  resumeText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "700",
+  },
 });
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.bg },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 22, paddingTop: 58, paddingBottom: 16 },
-  greetText: { color: C.textTertiary, fontSize: 12, marginBottom: 3, letterSpacing: 0.3 },
-  appName: { color: C.textPrimary, fontSize: 22, fontWeight: "700", letterSpacing: -0.5 },
-  settingBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, justifyContent: "center", alignItems: "center" },
-  scrollContent: { paddingHorizontal: 20, paddingBottom: 40 },
-  dateText: { color: C.textTertiary, fontSize: 12, letterSpacing: 0.3, marginBottom: 16 },
-  focusCard: { backgroundColor: C.surface, borderRadius: 16, borderWidth: 1, borderColor: C.border, padding: 18, marginBottom: 28 },
-  focusCardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 14 },
-  focusCardLabel: { color: C.textTertiary, fontSize: 9, fontWeight: "700", letterSpacing: 2, textTransform: "uppercase" },
-  goalBadge: { flexDirection: "row", alignItems: "center", backgroundColor: C.successSoft, borderWidth: 1, borderColor: C.success + "44", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
-  goalBadgeText: { color: C.success, fontSize: 10, fontWeight: "600" },
-  focusMain: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 14 },
-  focusLeft: { flex: 1 },
-  focusTime: { color: C.textPrimary, fontSize: 26, fontWeight: "300", letterSpacing: -0.5, marginBottom: 4, fontVariant: ["tabular-nums"] },
-  focusRemain: { color: C.textTertiary, fontSize: 12, letterSpacing: 0.2 },
-  ringWrap: { width: 76, height: 76, justifyContent: "center", alignItems: "center", marginLeft: 12 },
-  ringInner: { position: "absolute", alignItems: "center" },
-  ringPercent: { fontSize: 14, fontWeight: "700" },
-  ringLabel: { color: C.textTertiary, fontSize: 9, marginTop: 1 },
-  progressTrack: { height: 2, backgroundColor: C.border, borderRadius: 1, overflow: "hidden", marginBottom: 16 },
-  progressFill: { height: "100%", borderRadius: 1 },
-  statsRow: { flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: C.border, borderRadius: 10, overflow: "hidden", marginBottom: 14 },
-  statItem: { flex: 1, paddingVertical: 10, alignItems: "center", gap: 2 },
-  statDivider: { width: 1, height: 28, backgroundColor: C.border },
-  statValue: { color: C.textPrimary, fontSize: 13, fontWeight: "600", letterSpacing: 0.2 },
-  statLabel: { color: C.textTertiary, fontSize: 9, fontWeight: "600", letterSpacing: 0.8, textTransform: "uppercase" },
-  btnRow: { flexDirection: "row", gap: 8 },
-  startBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: C.accent, paddingVertical: 14, borderRadius: 10 },
-  startBtnText: { color: "#fff", fontWeight: "700", fontSize: 14, letterSpacing: 0.3 },
-  resetBtn: { width: 46, height: 46, borderRadius: 10, borderWidth: 1, borderColor: C.border, alignItems: "center", justifyContent: "center", backgroundColor: C.surfaceAlt },
-  sectionTitle: { color: C.textTertiary, fontSize: 9, fontWeight: "700", letterSpacing: 2, textTransform: "uppercase", marginBottom: 12 },
-  menuGrid: { flexDirection: "row", justifyContent: "space-between", marginBottom: 28 },
-  quickItem: { alignItems: "center", gap: 7 },
-  quickIconBox: { width: 54, height: 54, borderRadius: 14, borderWidth: 1, justifyContent: "center", alignItems: "center" },
-  quickLabel: { color: C.textSecondary, fontSize: 11, fontWeight: "500" },
-  comingSoonBadge: { backgroundColor: C.surfaceAlt, borderWidth: 1, borderColor: C.border, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2 },
-  comingSoonText: { color: C.textTertiary, fontSize: 8, fontWeight: "600", letterSpacing: 0.3 },
-  activityList: { maxHeight: 220, borderWidth: 1, borderColor: C.border, borderRadius: 12, overflow: "hidden", backgroundColor: C.surface },
-  activityItem: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 14, paddingVertical: 12 },
-  activityItemBorder: { borderTopWidth: 1, borderTopColor: C.border },
-  activityLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
-  activityAvatar: { width: 36, height: 36, borderRadius: 8, justifyContent: "center", alignItems: "center", borderWidth: 1 },
-  activityAvatarText: { fontWeight: "700", fontSize: 14 },
-  activitySubject: { color: C.textPrimary, fontWeight: "600", fontSize: 13, marginBottom: 2 },
-  activityTime: { color: C.textTertiary, fontSize: 11 },
-  durationTag: { borderRadius: 6, paddingHorizontal: 9, paddingVertical: 4, borderWidth: 1 },
-  durationTagText: { fontSize: 12, fontWeight: "600", letterSpacing: 0.3 },
-  emptyState: { alignItems: "center", paddingVertical: 40, backgroundColor: C.surface, borderRadius: 12, borderWidth: 1, borderColor: C.border, gap: 8 },
-  emptyIcon: { width: 40, height: 40, borderRadius: 10, backgroundColor: C.surfaceAlt, borderWidth: 1, borderColor: C.border, justifyContent: "center", alignItems: "center", marginBottom: 4 },
-  emptyTitle: { color: C.textSecondary, fontSize: 14, fontWeight: "600" },
-  emptyDesc: { color: C.textTertiary, fontSize: 12 },
+  container: {
+    flex: 1,
+    backgroundColor: C.bg,
+  },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 26,
+    paddingTop: 62,
+    paddingBottom: 22,
+  },
+  greetText: {
+    color: C.textTertiary,
+    fontSize: 12,
+    marginBottom: 4,
+  },
+  appName: {
+    color: C.textPrimary,
+    fontSize: 26,
+    fontWeight: "700",
+    letterSpacing: -1,
+  },
+  settingBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: C.surfaceElevated,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  scrollContent: {
+    paddingHorizontal: 24,
+    paddingBottom: 60,
+  },
+  dateText: {
+    color: C.textTertiary,
+    fontSize: 12,
+    marginBottom: 18,
+  },
+  // [FIX] 에러 배너 스타일 추가
+  errorBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#2D1515",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "rgba(248,113,113,0.25)",
+  },
+  errorText: {
+    color: "#F87171",
+    fontSize: 12,
+    flex: 1,
+  },
+  focusCard: {
+    backgroundColor: C.surfaceElevated,
+    borderRadius: 28,
+    padding: 24,
+    marginBottom: 32,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: C.border,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.35,
+    shadowRadius: 24,
+    elevation: 12,
+  },
+  focusGlow: {
+    position: "absolute",
+    width: 220,
+    height: 220,
+    borderRadius: 999,
+    backgroundColor: C.glow,
+    top: -120,
+    right: -80,
+  },
+  focusCardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 18,
+  },
+  focusCardLabel: {
+    color: C.textTertiary,
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 2,
+  },
+  goalBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: C.successSoft,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  goalBadgeText: {
+    color: C.success,
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  focusMain: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 18,
+  },
+  focusLeft: {
+    flex: 1,
+  },
+  focusTime: {
+    color: C.textPrimary,
+    fontSize: 42,
+    fontWeight: "200",
+    letterSpacing: -2,
+    marginBottom: 6,
+    fontVariant: ["tabular-nums"],
+  },
+  focusRemain: {
+    color: C.textSecondary,
+    fontSize: 13,
+  },
+  motivation: {
+    color: C.textTertiary,
+    fontSize: 13,
+    marginTop: 8,
+  },
+  ringWrap: {
+    width: 82,
+    height: 82,
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: 18,
+  },
+  ringInner: {
+    position: "absolute",
+    alignItems: "center",
+  },
+  ringPercent: {
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  ringLabel: {
+    color: C.textTertiary,
+    fontSize: 10,
+    marginTop: 2,
+  },
+  progressTrack: {
+    height: 4,
+    backgroundColor: C.border,
+    borderRadius: 999,
+    overflow: "hidden",
+    marginBottom: 20,
+  },
+  progressFill: {
+    height: "100%",
+    borderRadius: 999,
+  },
+  statsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: C.surfaceAlt,
+    borderRadius: 18,
+    paddingVertical: 6,
+    marginBottom: 18,
+  },
+  statItem: {
+    flex: 1,
+    alignItems: "center",
+    gap: 4,
+  },
+  statDivider: {
+    width: 1,
+    height: 28,
+    backgroundColor: C.border,
+  },
+  statValue: {
+    color: C.textPrimary,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  statLabel: {
+    color: C.textTertiary,
+    fontSize: 10,
+  },
+  btnRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  startBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: C.accent,
+    paddingVertical: 16,
+    borderRadius: 18,
+    shadowColor: C.accent,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.35,
+    shadowRadius: 18,
+    elevation: 8,
+  },
+  startBtnText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  resetBtn: {
+    width: 54,
+    height: 54,
+    borderRadius: 18,
+    backgroundColor: C.surfaceAlt,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  sectionTitle: {
+    color: C.textTertiary,
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 2,
+    textTransform: "uppercase",
+    marginBottom: 14,
+  },
+  menuGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    marginBottom: 30,
+  },
+  quickItem: {
+    width: "48%",
+    backgroundColor: C.surfaceElevated,
+    borderRadius: 22,
+    paddingVertical: 20,
+    paddingHorizontal: 16,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  quickIconBox: {
+    width: 54,
+    height: 54,
+    borderRadius: 18,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 14,
+  },
+  quickLabel: {
+    color: C.textPrimary,
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  comingSoonBadge: {
+    alignSelf: "flex-start",
+    marginTop: 10,
+    backgroundColor: C.surfaceAlt,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  comingSoonText: {
+    color: C.textTertiary,
+    fontSize: 10,
+  },
+  activityList: {
+    maxHeight: 260,
+    borderRadius: 22,
+    overflow: "hidden",
+    backgroundColor: C.surfaceElevated,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  activityItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+  },
+  activityItemBorder: {
+    borderTopWidth: 1,
+    borderTopColor: C.border,
+  },
+  activityLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  activityAvatar: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  activityAvatarText: {
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  activitySubject: {
+    color: C.textPrimary,
+    fontSize: 14,
+    fontWeight: "600",
+    marginBottom: 3,
+  },
+  activityTime: {
+    color: C.textTertiary,
+    fontSize: 11,
+  },
+  durationTag: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+  },
+  durationTagText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  emptyState: {
+    alignItems: "center",
+    backgroundColor: C.surfaceElevated,
+    borderRadius: 22,
+    paddingVertical: 46,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  emptyIcon: {
+    width: 54,
+    height: 54,
+    borderRadius: 18,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: C.surfaceAlt,
+    marginBottom: 14,
+  },
+  emptyTitle: {
+    color: C.textPrimary,
+    fontSize: 15,
+    fontWeight: "600",
+    marginBottom: 6,
+  },
+  emptyDesc: {
+    color: C.textTertiary,
+    fontSize: 12,
+  },
 });
