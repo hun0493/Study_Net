@@ -53,10 +53,6 @@ const SUBJECT_COLORS = [
 const KEY_ACTIVE = "active_session";
 
 // ─── Date utility ─────────────────────────────────────────────────────────────
-/**
- * [FIX] toDateString()은 로케일·타임존에 따라 결과가 달라질 수 있어
- * YYYY-MM-DD 고정 포맷으로 변환합니다.
- */
 const toDateKey = (date: Date): string =>
   [
     date.getFullYear(),
@@ -65,12 +61,6 @@ const toDateKey = (date: Date): string =>
   ].join("-");
 
 // ─── Session Context ──────────────────────────────────────────────────────────
-/**
- * [FIX] 기존에는 ActiveSessionBanner / MainScreen 양쪽에서
- * 각자 setInterval + AsyncStorage.getItem을 실행해 I/O가 중복됐습니다.
- * SessionProvider 하나가 단일 타이머 + 단일 폴링을 담당하고
- * 결과를 Context로 공유합니다.
- */
 interface ActiveSessionData {
   subject: string;
   startEpoch: number;
@@ -95,8 +85,6 @@ function SessionProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<ActiveSessionData | null>(null);
   const [elapsed, setElapsed] = useState(0);
 
-  // [FIX] ref로 최신 세션 데이터를 보관 → 타이머 콜백에서
-  // setSession을 읽지 않아도 되므로 setState 연쇄 없이 elapsed만 갱신
   const sessionRef = useRef<ActiveSessionData | null>(null);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollCount = useRef(0);
@@ -121,13 +109,11 @@ function SessionProvider({ children }: { children: React.ReactNode }) {
     refresh();
 
     tickRef.current = setInterval(() => {
-      // elapsed는 ref로 계산해 setState 중복 없이 갱신
       if (sessionRef.current) {
         setElapsed(
           Math.floor((Date.now() - sessionRef.current.startEpoch) / 1000)
         );
       }
-      // 5초마다 한 번만 AsyncStorage 재조회
       pollCount.current += 1;
       if (pollCount.current % 5 === 0) {
         refresh();
@@ -154,7 +140,6 @@ function SessionProvider({ children }: { children: React.ReactNode }) {
 // ─── ActiveSessionBanner ──────────────────────────────────────────────────────
 function ActiveSessionBanner() {
   const router = useRouter();
-  // [FIX] 컨텍스트에서 직접 구독 — 별도 타이머/폴링 없음
   const { session, elapsed } = useContext(SessionContext);
   const slideAnim = useRef(new Animated.Value(100)).current;
   const isActive = !!session;
@@ -229,7 +214,6 @@ function MainScreenInner() {
   const router = useRouter();
   const { added } = useLocalSearchParams();
 
-  // [FIX] 세션 상태는 Context에서 구독 — 별도 상태/타이머 제거
   const {
     session: activeSession,
     elapsed: liveExtra,
@@ -241,7 +225,6 @@ function MainScreenInner() {
   const [savedSeconds, setSavedSeconds] = useState(0);
   const [streak, setStreak] = useState(0);
   const [dailyGoal, setDailyGoal] = useState(60 * 60 * 3);
-  // [FIX] catch 블록 묵음 처리 대신 사용자에게 에러 상태 노출
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const loadSessions = useCallback(async () => {
@@ -253,18 +236,19 @@ function MainScreenInner() {
 
       const raw = await AsyncStorage.getItem("study_sessions");
       const list: any[] = raw ? JSON.parse(raw) : [];
-      setSessions(list);
 
-      // [FIX] toDateKey() 사용으로 타임존 무관하게 오늘 세션 필터링
+      // [FIX] subject가 없는 깨진 데이터 필터링
+      const validList = list.filter((s) => s && s.subject);
+      setSessions(validList);
+
       const todayKey = toDateKey(new Date());
-      const todaySum = list
+      const todaySum = validList
         .filter((s) => toDateKey(new Date(s.date)) === todayKey)
         .reduce((sum, s) => sum + s.seconds, 0);
       setSavedSeconds(todaySum);
 
-      // [FIX] streak 계산도 YYYY-MM-DD 기준으로 정규화
       const uniqueDays = Array.from(
-        new Set(list.map((s) => toDateKey(new Date(s.date))))
+        new Set(validList.map((s) => toDateKey(new Date(s.date))))
       )
         .sort()
         .reverse();
@@ -288,12 +272,9 @@ function MainScreenInner() {
 
   useEffect(() => {
     loadSessions();
-    // 세션이 추가됐을 때 Context도 즉시 갱신
     refreshSession();
   }, [added, loadSessions, refreshSession]);
 
-  // [FIX] 과목 색상 매핑을 모듈 전역 캐시 대신 useMemo로 컴포넌트 수명에 묶음
-  // → 과목 추가/삭제 시 자동 재계산, 오염 없음
   const allSubjectNames = useMemo(
     () => Array.from(new Set(sessions.map((s) => s.subject))) as string[],
     [sessions]
@@ -381,7 +362,6 @@ function MainScreenInner() {
         >
           <Text style={styles.dateText}>{dateStr}</Text>
 
-          {/* [FIX] 에러 발생 시 사용자에게 인라인 배너로 노출 */}
           {loadError && (
             <View style={styles.errorBanner}>
               <Ionicons
@@ -541,7 +521,6 @@ function MainScreenInner() {
                     />
                     <Text style={styles.startBtnText}>학습 시작</Text>
                   </TouchableOpacity>
-                  {/* [FIX] onPress 없는 버튼 → disabled + 시각적 비활성 처리 */}
                   <TouchableOpacity
                     style={[styles.resetBtn, { opacity: 0.4 }]}
                     activeOpacity={1}
@@ -604,10 +583,10 @@ function MainScreenInner() {
               nestedScrollEnabled
             >
               {sessions
+                .filter((s) => s && s.subject)  // [FIX] 깨진 데이터 방어
                 .slice()
                 .reverse()
                 .map((s, i) => {
-                  // [FIX] 전역 캐시 대신 useMemo 기반 getSubjectColor 사용
                   const color = getSubjectColor(s.subject);
                   return (
                     <View
@@ -668,10 +647,6 @@ function MainScreenInner() {
 }
 
 // ─── Default export ───────────────────────────────────────────────────────────
-/**
- * [FIX] SessionProvider로 감싸서 Banner·MainScreenInner가
- * 하나의 세션 상태를 공유하도록 구성
- */
 export default function MainScreen() {
   return (
     <SessionProvider>
@@ -695,7 +670,6 @@ function QuickMenu({
   onPress?: () => void;
 }) {
   return (
-    // [FIX] comingSoon 버튼은 opacity 0.45로 시각적 비활성 표시
     <TouchableOpacity
       style={[styles.quickItem, comingSoon && { opacity: 0.45 }]}
       activeOpacity={comingSoon ? 1 : 0.8}
@@ -837,7 +811,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginBottom: 18,
   },
-  // [FIX] 에러 배너 스타일 추가
   errorBanner: {
     flexDirection: "row",
     alignItems: "center",

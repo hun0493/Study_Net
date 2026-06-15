@@ -15,6 +15,15 @@ import {
   View,
 } from "react-native";
 
+// ✅ Google 로그인 관련 추가 import
+import * as Google from "expo-auth-session/providers/google";
+import * as WebBrowser from "expo-web-browser";
+import { GoogleAuthProvider, signInWithCredential } from "firebase/auth";
+import { auth } from "../utils/firebaseConfig";
+
+// ✅ 인증 세션 완료 처리 (필수, 컴포넌트 바깥에서 호출)
+WebBrowser.maybeCompleteAuthSession();
+
 /* ─────────────────────────────────────────────
    메인 컴포넌트
 ───────────────────────────────────────────── */
@@ -27,12 +36,69 @@ export default function LoginScreen() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);        // ① 로딩 상태
   const [errorMsg, setErrorMsg] = useState("");         // 에러 메시지
+  const [googleLoading, setGoogleLoading] = useState(false); // ✅ 구글 로그인 로딩
 
   // ② 키보드 다음 필드 이동용 ref
   const pwRef = useRef<TextInput>(null);
 
   // ③ 유효성 검사 — 이메일 형식 + 비밀번호 6자 이상
   const isValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && password.length >= 6;
+
+  // ✅ Google 로그인 요청 설정
+  const [request, response, promptAsync] = Google.useAuthRequest({
+    webClientId:
+      "713632998369-g276ekeqbra47uag5lttt8i5fb766mft.apps.googleusercontent.com",
+    androidClientId:
+      "713632998369-kplb0uk05k8peh43s48l6guidgn27pl5.apps.googleusercontent.com",
+  });
+
+  // ✅ Google 로그인 응답 처리
+  useEffect(() => {
+    const handleGoogleResponse = async () => {
+      if (response?.type === "success") {
+        try {
+          setGoogleLoading(true);
+          setErrorMsg("");
+
+          const { id_token } = response.params;
+
+          if (!id_token) {
+            setErrorMsg("구글 인증 정보를 가져오지 못했습니다.");
+            return;
+          }
+
+          const credential = GoogleAuthProvider.credential(id_token);
+          await signInWithCredential(auth, credential);
+
+          router.replace("/main");
+        } catch (e) {
+          console.log("Google 로그인 에러:", e);
+          setErrorMsg("구글 로그인에 실패했습니다. 다시 시도해주세요.");
+        } finally {
+          setGoogleLoading(false);
+        }
+      } else if (response?.type === "error") {
+        setErrorMsg("구글 로그인이 취소되었거나 실패했습니다.");
+        setGoogleLoading(false);
+      }
+    };
+
+    handleGoogleResponse();
+  }, [response]);
+
+  // ✅ Google 로그인 버튼 핸들러
+  const handleGoogleLogin = async () => {
+    if (!request || googleLoading) return;
+    setErrorMsg("");
+    try {
+      setGoogleLoading(true);
+      await promptAsync();
+    } catch (e) {
+      console.log("promptAsync 에러:", e);
+      setErrorMsg("구글 로그인을 시작할 수 없습니다.");
+      setGoogleLoading(false);
+    }
+  };
 
   // ④ 로그인 핸들러 (API 연동 시 여기에 작성)
   const handleLogin = async () => {
@@ -210,7 +276,9 @@ export default function LoginScreen() {
                 name="logo-google"
                 bg="#fff"
                 iconColor="#EA4335"
-                onPress={() => {}}
+                onPress={handleGoogleLogin}
+                disabled={!request || googleLoading}
+                loading={googleLoading}
               />
               <SocialIconBtn
                 name="chatbubble"
@@ -248,18 +316,27 @@ const SocialIconBtn = ({
   bg,
   iconColor,
   onPress,
+  disabled = false,
+  loading = false,
 }: {
   name: keyof typeof Ionicons.glyphMap;
   bg: string;
   iconColor: string;
   onPress: () => void;
+  disabled?: boolean;
+  loading?: boolean;
 }) => (
   <TouchableOpacity
     activeOpacity={0.8}
-    style={[sis.btn, { backgroundColor: bg }]}
+    style={[sis.btn, { backgroundColor: bg }, disabled && sis.btnDisabled]}
     onPress={onPress}
+    disabled={disabled}
   >
-    <Ionicons name={name} size={22} color={iconColor} />
+    {loading ? (
+      <ActivityIndicator color={iconColor} size="small" />
+    ) : (
+      <Ionicons name={name} size={22} color={iconColor} />
+    )}
   </TouchableOpacity>
 );
 
@@ -274,6 +351,9 @@ const sis = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 8,
     elevation: 4,
+  },
+  btnDisabled: {
+    opacity: 0.6,
   },
 });
 
