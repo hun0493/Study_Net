@@ -9,7 +9,9 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import BottomNav, { getBottomNavSpace } from "../components/BottomNav";
 import { useMonoTheme, type MonoTheme } from "../constants/mono";
 import {
   formatStudyDuration,
@@ -21,7 +23,9 @@ import {
 export default function StatisticsScreen() {
   const router = useRouter();
   const { theme: C } = useMonoTheme();
+  const insets = useSafeAreaInsets();
   const s = useMemo(() => createStyles(C), [C]);
+  const bottomSpace = getBottomNavSpace(insets.bottom);
   const [sessions, setSessions] = useState<StudySession[]>([]);
 
   useEffect(() => {
@@ -70,7 +74,7 @@ export default function StatisticsScreen() {
         <View style={s.headerSpacer} />
       </View>
 
-      <ScrollView contentContainerStyle={s.content}>
+      <ScrollView contentContainerStyle={[s.content, { paddingBottom: bottomSpace + 24 }]}>
         <View style={s.grid}>
           <StatCard label="오늘" value={formatStudyDuration(stats.todaySeconds)} styles={s} />
           <StatCard label="최근 7일" value={formatStudyDuration(stats.weekSeconds)} styles={s} />
@@ -100,6 +104,7 @@ export default function StatisticsScreen() {
           ))
         )}
       </ScrollView>
+      <BottomNav />
     </View>
   );
 }
@@ -125,17 +130,17 @@ const createStyles = (C: MonoTheme) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: C.bg, paddingTop: 58, paddingHorizontal: 20 },
     header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 22 },
-    iconButton: { width: 38, height: 38, borderWidth: 1, borderColor: C.border, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: C.surface },
+    iconButton: { width: 38, height: 38, borderWidth: 1, borderBottomWidth: 3, borderColor: C.border, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: C.surface },
     headerSpacer: { width: 38 },
     title: { color: C.text, fontSize: 24, fontWeight: "800" },
-    content: { paddingBottom: 40 },
+    content: {},
     grid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", marginBottom: 24 },
-    statCard: { width: "48%", borderWidth: 1, borderColor: C.border, borderRadius: 16, padding: 16, marginBottom: 12, backgroundColor: C.surface },
+    statCard: { width: "48%", borderWidth: 1, borderBottomWidth: 4, borderColor: C.border, borderRadius: 16, padding: 16, marginBottom: 12, backgroundColor: C.surface },
     statLabel: { color: C.text, fontSize: 12, fontWeight: "700", marginBottom: 8 },
     statValue: { color: C.text, fontSize: 18, fontWeight: "900" },
     sectionTitle: { color: C.text, fontSize: 15, fontWeight: "900", marginBottom: 12 },
     emptyText: { color: C.text, borderWidth: 1, borderColor: C.border, borderRadius: 14, padding: 16 },
-    subjectRow: { borderWidth: 1, borderColor: C.border, borderRadius: 14, padding: 14, marginBottom: 12, backgroundColor: C.surface },
+    subjectRow: { borderWidth: 1, borderBottomWidth: 3, borderColor: C.border, borderRadius: 14, padding: 14, marginBottom: 12, backgroundColor: C.surface },
     subjectHeader: { flexDirection: "row", justifyContent: "space-between", marginBottom: 10 },
     subjectName: { color: C.text, fontWeight: "800" },
     subjectTime: { color: C.text, fontWeight: "700" },

@@ -6,7 +6,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
-  Dimensions,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -17,11 +16,13 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  useWindowDimensions,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import BottomNav, { getBottomNavSpace } from "../components/BottomNav";
 import { db } from "../utils/firebaseConfig";
 import { useMonoTheme, type MonoTheme } from "../constants/mono";
 
-const { width: SW } = Dimensions.get("window");
 const CODE_LENGTH = 6;
 const MEMBER_KEY = "group_member_profile";
 const ACTIVE_SESSION_KEY = "active_session";
@@ -148,8 +149,11 @@ const snapshotToRoom = (id: string, raw: any): Room => ({
 export default function GroupScreen() {
   const router = useRouter();
   const { theme } = useMonoTheme();
+  const insets = useSafeAreaInsets();
+  const { width: screenWidth } = useWindowDimensions();
   const C = useMemo(() => createGroupTheme(theme), [theme]);
   const s = useMemo(() => createStyles(C), [C]);
+  const bottomSpace = getBottomNavSpace(insets.bottom);
   const [screen, setScreen] = useState<Screen>("lobby");
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
@@ -466,7 +470,7 @@ export default function GroupScreen() {
         <StatusBar barStyle={C.statusBar} backgroundColor={C.bg} />
 
         <View style={s.header}>
-          <TouchableOpacity style={s.backBtn} onPress={() => router.back()}>
+          <TouchableOpacity style={s.backBtn} onPress={() => router.replace("/main")}>
             <Ionicons name="chevron-down" size={18} color={C.textSecondary} />
           </TouchableOpacity>
           <View style={s.headerCenter}>
@@ -478,7 +482,10 @@ export default function GroupScreen() {
           </View>
         </View>
 
-        <ScrollView contentContainerStyle={s.lobbyContent} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={[s.lobbyContent, { paddingBottom: bottomSpace + 24 }]}
+          showsVerticalScrollIndicator={false}
+        >
           {loadError !== "" && (
             <View style={s.errorBanner}>
               <Ionicons name="alert-circle-outline" size={14} color={C.danger} style={{ marginRight: 6 }} />
@@ -628,6 +635,8 @@ export default function GroupScreen() {
             </View>
           </KeyboardAvoidingView>
         </Modal>
+
+        <BottomNav />
       </View>
     );
   }
@@ -637,13 +646,26 @@ export default function GroupScreen() {
       <View style={[s.container, s.center]}>
         <ActivityIndicator color={C.textAccent} />
         <Text style={s.loadingText}>방 정보를 불러오는 중...</Text>
+        <BottomNav />
       </View>
     );
   }
 
+  const memberTotal = Math.max(roomMembers.length, 1);
+  const gridColumns = memberTotal <= 1 ? 1 : memberTotal <= 4 ? 2 : memberTotal <= 9 ? 3 : screenWidth >= 430 ? 4 : 3;
+  const compactCards = memberTotal >= 7;
+  const denseCards = memberTotal >= 10;
   const CARD_GAP = 6;
-  const CARD_W = (SW - 36 - CARD_GAP) / 2;
-  const CARD_H = CARD_W * (4 / 3);
+  const GRID_PADDING_X = 12;
+  const CARD_W = (screenWidth - GRID_PADDING_X * 2 - CARD_GAP * (gridColumns - 1)) / gridColumns;
+  const CARD_H =
+    gridColumns === 1
+      ? Math.min(CARD_W * 0.68, 260)
+      : denseCards
+        ? Math.max(82, CARD_W * 0.78)
+        : compactCards
+          ? Math.max(104, CARD_W * 0.9)
+          : CARD_W * 1.05;
   const isOwner = selectedRoom.ownerId === member?.id;
 
   return (
@@ -669,86 +691,114 @@ export default function GroupScreen() {
         </View>
       </View>
 
-      <View style={s.inviteBar}>
-        <View>
-          <Text style={s.inviteLabel}>입장 코드</Text>
-          <Text style={s.inviteCode}>{selectedRoom.code}</Text>
-        </View>
-        <View style={s.ownerTag}>
-          <Text style={s.ownerTagText}>{isOwner ? "방장" : "참여자"}</Text>
-        </View>
-      </View>
-
-      <View style={s.gridWrap}>
-        {roomMembers.length === 1 && (
-          <View style={s.quietNotice}>
-            <Ionicons name="leaf-outline" size={14} color={C.textAccent} style={{ marginRight: 6 }} />
-            <Text style={s.quietNoticeText}>아직 혼자예요. 입장 코드를 공유하면 친구가 같은 집중석에 앉을 수 있어요.</Text>
+      <ScrollView
+        style={s.roomScroll}
+        contentContainerStyle={[s.roomContent, { paddingBottom: bottomSpace + 18 }]}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={s.inviteBar}>
+          <View>
+            <Text style={s.inviteLabel}>입장 코드</Text>
+            <Text style={s.inviteCode}>{selectedRoom.code}</Text>
           </View>
-        )}
-        <View style={s.grid}>
-          {roomMembers.map((m) => {
-            const isMe = m.id === member?.id;
-            return (
-              <View key={m.id} style={[s.camCard, { width: CARD_W, height: CARD_H }, m.speaking && s.camCardSpeaking, isMe && s.camCardMe]}>
-                <View style={[s.camBg, { backgroundColor: m.color + "08" }]}>
-                  <View style={[s.camAvatar, { backgroundColor: m.color + "22", borderColor: m.color + "44" }]}>
-                    <Text style={[s.camAvatarText, { color: m.color }]}>{getInitial(m.name)}</Text>
-                  </View>
-                </View>
-                {m.muted && (
-                  <View style={s.micOffBadge}>
-                    <Ionicons name="mic-off" size={9} color={C.textPrimary} />
-                  </View>
-                )}
-                <View style={s.camInfo}>
-                  <View style={s.camNameRow}>
-                    <Text style={s.camName} numberOfLines={1}>{m.name}</Text>
-                    {isMe && <View style={s.meTag}><Text style={s.meTagText}>ME</Text></View>}
-                  </View>
-                  <View style={s.camSubjectRow}>
-                    <View style={s.subjectPill}>
-                      <View style={[s.subjectDot, { backgroundColor: m.color }]} />
-                    <Text style={s.subjectText} numberOfLines={1}>{m.status ?? "집중중"}</Text>
+          <View style={s.ownerTag}>
+            <Text style={s.ownerTagText}>{isOwner ? "방장" : "참여자"}</Text>
+          </View>
+        </View>
+
+        <View style={s.gridWrap}>
+          {roomMembers.length === 1 && (
+            <View style={s.quietNotice}>
+              <Ionicons name="leaf-outline" size={14} color={C.textAccent} style={{ marginRight: 6 }} />
+              <Text style={s.quietNoticeText}>아직 혼자예요. 입장 코드를 공유하면 친구가 같은 집중석에 앉을 수 있어요.</Text>
+            </View>
+          )}
+          <View style={[s.grid, { gap: CARD_GAP }]}>
+            {roomMembers.map((m) => {
+              const isMe = m.id === member?.id;
+              return (
+                <View
+                  key={m.id}
+                  style={[
+                    s.camCard,
+                    compactCards && s.camCardCompact,
+                    { width: CARD_W, height: CARD_H },
+                    m.speaking && s.camCardSpeaking,
+                    isMe && s.camCardMe,
+                  ]}
+                >
+                  <View style={[s.camBg, { backgroundColor: m.color + "08" }]}>
+                    <View
+                      style={[
+                        s.camAvatar,
+                        compactCards && s.camAvatarCompact,
+                        denseCards && s.camAvatarDense,
+                        { backgroundColor: m.color + "22", borderColor: m.color + "44" },
+                      ]}
+                    >
+                      <Text style={[s.camAvatarText, compactCards && s.camAvatarTextCompact, { color: m.color }]}>
+                        {getInitial(m.name)}
+                      </Text>
                     </View>
-                    <Text style={s.camTimer}>{formatTimer(m.studyStartEpoch ?? m.joinedAt)}</Text>
+                  </View>
+                  {m.muted && (
+                    <View style={s.micOffBadge}>
+                      <Ionicons name="mic-off" size={9} color={C.textPrimary} />
+                    </View>
+                  )}
+                  <View style={[s.camInfo, compactCards && s.camInfoCompact]}>
+                    <View style={s.camNameRow}>
+                      <Text style={[s.camName, denseCards && s.camNameDense]} numberOfLines={1}>{m.name}</Text>
+                      {isMe && <View style={s.meTag}><Text style={s.meTagText}>ME</Text></View>}
+                    </View>
+                    {denseCards ? (
+                      <Text style={s.camTimerCompact}>{formatTimer(m.studyStartEpoch ?? m.joinedAt)}</Text>
+                    ) : (
+                      <View style={s.camSubjectRow}>
+                        <View style={s.subjectPill}>
+                          <View style={[s.subjectDot, { backgroundColor: m.color }]} />
+                          <Text style={s.subjectText} numberOfLines={1}>{m.status ?? "집중중"}</Text>
+                        </View>
+                        <Text style={s.camTimer}>{formatTimer(m.studyStartEpoch ?? m.joinedAt)}</Text>
+                      </View>
+                    )}
                   </View>
                 </View>
-              </View>
-            );
-          })}
-        </View>
-      </View>
-
-      <View style={s.timerBar}>
-        <Text style={s.timerLabel}>세션</Text>
-        <Text style={s.timerValue}>{formatTimer(myMember?.studyStartEpoch ?? myMember?.joinedAt)}</Text>
-        <View style={s.timerProgressWrap}>
-          <View style={s.timerProgressTrack}>
-            <View style={[s.timerProgressFill, { width: "46%" }]} />
+              );
+            })}
           </View>
         </View>
-        <Text style={s.timerPct} numberOfLines={1}>{selectedRoom.subjects}</Text>
-      </View>
 
-      <View style={s.controls}>
-        <TouchableOpacity style={[s.ctrlBtn, micOn && s.ctrlBtnActive]} onPress={() => updateMic(!micOn)} activeOpacity={0.8}>
-          <Ionicons name={micOn ? "mic" : "mic-off"} size={18} color={C.textPrimary} />
-        </TouchableOpacity>
-        <TouchableOpacity style={[s.ctrlBtn, camOn && s.ctrlBtnActive]} onPress={() => setCamOn((v) => !v)} activeOpacity={0.8}>
-          <Ionicons name={camOn ? "videocam" : "videocam-off"} size={18} color={C.textPrimary} />
-        </TouchableOpacity>
-        <View style={s.emojiRow}>
-          {EMOJIS.map((emoji) => (
-            <TouchableOpacity key={emoji} onPress={() => sendEmoji(emoji)} activeOpacity={0.7} style={s.emojiBtn}>
-              <Text style={s.emojiBtnText}>{emoji}</Text>
-            </TouchableOpacity>
-          ))}
+        <View style={s.timerBar}>
+          <Text style={s.timerLabel}>세션</Text>
+          <Text style={s.timerValue}>{formatTimer(myMember?.studyStartEpoch ?? myMember?.joinedAt)}</Text>
+          <View style={s.timerProgressWrap}>
+            <View style={s.timerProgressTrack}>
+              <View style={[s.timerProgressFill, { width: "46%" }]} />
+            </View>
+          </View>
+          <Text style={s.timerPct} numberOfLines={1}>{selectedRoom.subjects}</Text>
         </View>
-        <TouchableOpacity style={s.ctrlBtnDanger} onPress={leaveRoom} activeOpacity={0.8}>
-          <Ionicons name="call" size={18} color={C.textPrimary} />
-        </TouchableOpacity>
-      </View>
+
+        <View style={s.controls}>
+          <TouchableOpacity style={[s.ctrlBtn, micOn && s.ctrlBtnActive]} onPress={() => updateMic(!micOn)} activeOpacity={0.8}>
+            <Ionicons name={micOn ? "mic" : "mic-off"} size={18} color={C.textPrimary} />
+          </TouchableOpacity>
+          <TouchableOpacity style={[s.ctrlBtn, camOn && s.ctrlBtnActive]} onPress={() => setCamOn((v) => !v)} activeOpacity={0.8}>
+            <Ionicons name={camOn ? "videocam" : "videocam-off"} size={18} color={C.textPrimary} />
+          </TouchableOpacity>
+          <View style={s.emojiRow}>
+            {EMOJIS.map((emoji) => (
+              <TouchableOpacity key={emoji} onPress={() => sendEmoji(emoji)} activeOpacity={0.7} style={s.emojiBtn}>
+                <Text style={s.emojiBtnText}>{emoji}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <TouchableOpacity style={s.ctrlBtnDanger} onPress={leaveRoom} activeOpacity={0.8}>
+            <Ionicons name="call" size={18} color={C.textPrimary} />
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
 
       {floatingEmoji && (
         <Animated.View style={[s.floatingEmoji, { transform: [{ translateY: floatY }], opacity: floatOpacity }]}>
@@ -796,6 +846,7 @@ export default function GroupScreen() {
           </View>
         </View>
       </Modal>
+      <BottomNav />
     </View>
   );
 }
@@ -804,7 +855,7 @@ const createStyles = (C: GroupTheme) => StyleSheet.create({
   container: { flex: 1, backgroundColor: C.bg, paddingTop: 56 },
   center: { justifyContent: "center", alignItems: "center" },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 18, paddingBottom: 14 },
-  backBtn: { width: 34, height: 34, borderRadius: 8, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, justifyContent: "center", alignItems: "center" },
+  backBtn: { width: 34, height: 34, borderRadius: 8, backgroundColor: C.surface, borderWidth: 1, borderBottomWidth: 3, borderColor: C.border, justifyContent: "center", alignItems: "center" },
   headerCenter: { flex: 1, alignItems: "center", paddingHorizontal: 8 },
   headerTitle: { color: C.textPrimary, fontSize: 14, fontWeight: "700" },
   headerSub: { color: C.textTertiary, fontSize: 9, letterSpacing: 1.5, marginTop: 1 },
@@ -820,18 +871,18 @@ const createStyles = (C: GroupTheme) => StyleSheet.create({
   lobbyTitle: { color: C.textPrimary, fontSize: 17, fontWeight: "800", marginBottom: 7 },
   lobbySub: { color: C.textSecondary, fontSize: 12, lineHeight: 18, textAlign: "center" },
   errorBanner: { flexDirection: "row", alignItems: "center", backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
-  codeJoinBtn: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 14, padding: 14 },
+  codeJoinBtn: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: C.surface, borderWidth: 1, borderBottomWidth: 4, borderColor: C.border, borderRadius: 14, padding: 14 },
   codeJoinLeft: { flexDirection: "row", alignItems: "center", gap: 12, flex: 1 },
   codeJoinIcon: { width: 40, height: 40, borderRadius: 11, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, justifyContent: "center", alignItems: "center" },
   codeJoinTitle: { color: C.textPrimary, fontSize: 13, fontWeight: "700", marginBottom: 2 },
   codeJoinSub: { color: C.textTertiary, fontSize: 11 },
-  createBtn: { borderWidth: 1.5, borderColor: C.border, borderStyle: "dashed", borderRadius: 14, paddingVertical: 16, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  createBtn: { borderWidth: 1.5, borderBottomWidth: 4, borderColor: C.border, borderStyle: "dashed", borderRadius: 14, paddingVertical: 16, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   createBtnText: { color: C.textTertiary, fontSize: 13, fontWeight: "600" },
   modalOverlay: { flex: 1, backgroundColor: C.bg, justifyContent: "center", alignItems: "center", paddingHorizontal: 24 },
   modalCard: { width: "100%", backgroundColor: C.surface, borderRadius: 18, borderWidth: 1, borderColor: C.borderMid, padding: 22, gap: 12 },
   modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   modalIconWrap: { width: 40, height: 40, borderRadius: 12, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, justifyContent: "center", alignItems: "center" },
-  modalCloseBtn: { width: 28, height: 28, borderRadius: 7, backgroundColor: C.surfaceAlt, borderWidth: 1, borderColor: C.border, justifyContent: "center", alignItems: "center" },
+  modalCloseBtn: { width: 28, height: 28, borderRadius: 7, backgroundColor: C.surfaceAlt, borderWidth: 1, borderBottomWidth: 2, borderColor: C.border, justifyContent: "center", alignItems: "center" },
   modalTitle: { color: C.textPrimary, fontSize: 16, fontWeight: "700" },
   modalSubtitle: { color: C.textTertiary, fontSize: 12, lineHeight: 18 },
   codeInput: { backgroundColor: C.surfaceAlt, borderWidth: 1, borderColor: C.borderMid, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, color: C.textPrimary, fontSize: 22, fontWeight: "600", letterSpacing: 6, textAlign: "center", fontVariant: ["tabular-nums"] },
@@ -844,8 +895,10 @@ const createStyles = (C: GroupTheme) => StyleSheet.create({
   maxOptionTextActive: { color: C.cafe },
   errorRow: { flexDirection: "row", alignItems: "center", backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
   errorText: { color: C.danger, fontSize: 12, flex: 1 },
-  enterBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: C.surface, borderRadius: 12, paddingVertical: 15, minHeight: 50, borderWidth: 1, borderColor: C.border },
+  enterBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: C.surface, borderRadius: 12, paddingVertical: 15, minHeight: 50, borderWidth: 1, borderBottomWidth: 4, borderColor: C.border },
   enterBtnText: { color: C.textPrimary, fontWeight: "700", fontSize: 15, letterSpacing: 0.5 },
+  roomScroll: { flex: 1 },
+  roomContent: { paddingBottom: 24 },
   inviteBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginHorizontal: 12, marginBottom: 10, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 11 },
   inviteLabel: { color: C.textTertiary, fontSize: 10, fontWeight: "700", letterSpacing: 1 },
   inviteCode: { color: C.textPrimary, fontSize: 20, fontWeight: "800", letterSpacing: 3, marginTop: 2 },
@@ -856,15 +909,21 @@ const createStyles = (C: GroupTheme) => StyleSheet.create({
   quietNoticeText: { color: C.textTertiary, fontSize: 11, lineHeight: 16, flex: 1 },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   camCard: { borderRadius: 12, overflow: "hidden", borderWidth: 1.5, borderColor: C.border, backgroundColor: C.surface },
+  camCardCompact: { borderRadius: 10 },
   camCardSpeaking: { borderColor: C.success, shadowColor: C.success, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
   camCardMe: { borderColor: C.cafe + "88" },
   camBg: { ...StyleSheet.absoluteFillObject, justifyContent: "center", alignItems: "center" },
   camAvatar: { width: 48, height: 48, borderRadius: 12, borderWidth: 1.5, justifyContent: "center", alignItems: "center" },
+  camAvatarCompact: { width: 38, height: 38, borderRadius: 10 },
+  camAvatarDense: { width: 32, height: 32, borderRadius: 9 },
   camAvatarText: { fontSize: 20, fontWeight: "700" },
+  camAvatarTextCompact: { fontSize: 15 },
   micOffBadge: { position: "absolute", top: 7, right: 7, width: 18, height: 18, borderRadius: 9, backgroundColor: C.surface, justifyContent: "center", alignItems: "center" },
   camInfo: { position: "absolute", bottom: 0, left: 0, right: 0, padding: 8, backgroundColor: C.surface },
+  camInfoCompact: { padding: 6 },
   camNameRow: { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 3 },
   camName: { color: C.textPrimary, fontSize: 11, fontWeight: "700", flex: 1 },
+  camNameDense: { fontSize: 10 },
   meTag: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 3, paddingHorizontal: 4, paddingVertical: 1 },
   meTagText: { color: C.textPrimary, fontSize: 7, fontWeight: "700", letterSpacing: 0.5 },
   camSubjectRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 6 },
@@ -872,6 +931,7 @@ const createStyles = (C: GroupTheme) => StyleSheet.create({
   subjectDot: { width: 4, height: 4, borderRadius: 2 },
   subjectText: { color: C.textSecondary, fontSize: 9, fontWeight: "600" },
   camTimer: { color: C.textAccent, fontSize: 10, fontWeight: "600", fontVariant: ["tabular-nums"] },
+  camTimerCompact: { color: C.textAccent, fontSize: 9, fontWeight: "700", fontVariant: ["tabular-nums"] },
   timerBar: { flexDirection: "row", alignItems: "center", marginHorizontal: 12, marginTop: 10, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 9, gap: 8 },
   timerLabel: { color: C.textTertiary, fontSize: 9, fontWeight: "700", letterSpacing: 1 },
   timerValue: { color: C.textPrimary, fontSize: 14, fontWeight: "300", fontVariant: ["tabular-nums"] },
@@ -880,11 +940,11 @@ const createStyles = (C: GroupTheme) => StyleSheet.create({
   timerProgressFill: { height: "100%", backgroundColor: C.textPrimary, borderRadius: 2 },
   timerPct: { color: C.textAccent, fontSize: 11, fontWeight: "700", maxWidth: 90 },
   controls: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingTop: 10, paddingBottom: 24, gap: 8 },
-  ctrlBtn: { width: 46, height: 46, borderRadius: 14, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, justifyContent: "center", alignItems: "center" },
+  ctrlBtn: { width: 46, height: 46, borderRadius: 14, backgroundColor: C.surface, borderWidth: 1, borderBottomWidth: 3, borderColor: C.border, justifyContent: "center", alignItems: "center" },
   ctrlBtnActive: { backgroundColor: C.surface, borderColor: C.accent },
-  ctrlBtnDanger: { width: 46, height: 46, borderRadius: 14, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, justifyContent: "center", alignItems: "center" },
+  ctrlBtnDanger: { width: 46, height: 46, borderRadius: 14, backgroundColor: C.surface, borderWidth: 1, borderBottomWidth: 3, borderColor: C.border, justifyContent: "center", alignItems: "center" },
   emojiRow: { flexDirection: "row", alignItems: "center", backgroundColor: C.surfaceAlt, borderWidth: 1, borderColor: C.border, borderRadius: 12, paddingHorizontal: 6, paddingVertical: 6, gap: 2 },
-  emojiBtn: { paddingHorizontal: 4, paddingVertical: 2, borderWidth: 1, borderColor: C.border, borderRadius: 8 },
+  emojiBtn: { paddingHorizontal: 4, paddingVertical: 2, borderWidth: 1, borderBottomWidth: 2, borderColor: C.border, borderRadius: 8 },
   emojiBtnText: { fontSize: 16 },
   loadingText: { color: C.textTertiary, fontSize: 12, marginTop: 10 },
   confirmOverlay: { flex: 1, backgroundColor: C.bg, justifyContent: "center", alignItems: "center", paddingHorizontal: 24 },
@@ -893,9 +953,9 @@ const createStyles = (C: GroupTheme) => StyleSheet.create({
   confirmTitle: { color: C.textPrimary, fontSize: 17, fontWeight: "800", textAlign: "center", marginBottom: 8 },
   confirmDesc: { color: C.textSecondary, fontSize: 12, lineHeight: 18, textAlign: "center", marginBottom: 18 },
   confirmActions: { flexDirection: "row", gap: 10, width: "100%" },
-  confirmCancelBtn: { flex: 1, height: 48, borderRadius: 12, backgroundColor: C.surfaceAlt, borderWidth: 1, borderColor: C.border, justifyContent: "center", alignItems: "center" },
+  confirmCancelBtn: { flex: 1, height: 48, borderRadius: 12, backgroundColor: C.surfaceAlt, borderWidth: 1, borderBottomWidth: 4, borderColor: C.border, justifyContent: "center", alignItems: "center" },
   confirmCancelText: { color: C.textSecondary, fontSize: 14, fontWeight: "800" },
-  confirmLeaveBtn: { flex: 1, height: 48, borderRadius: 12, backgroundColor: C.surface, justifyContent: "center", alignItems: "center", borderWidth: 1, borderColor: C.border },
+  confirmLeaveBtn: { flex: 1, height: 48, borderRadius: 12, backgroundColor: C.surface, justifyContent: "center", alignItems: "center", borderWidth: 1, borderBottomWidth: 4, borderColor: C.border },
   confirmLeaveDangerBtn: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border },
   confirmLeaveText: { color: C.textPrimary, fontSize: 14, fontWeight: "800" },
   floatingEmoji: { position: "absolute", bottom: 90, left: "50%", marginLeft: -18 },

@@ -9,7 +9,9 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import BottomNav, { getBottomNavSpace } from "../components/BottomNav";
 import { useMonoTheme, type MonoTheme } from "../constants/mono";
 import {
   formatStudyDuration,
@@ -27,7 +29,9 @@ type RankItem = {
 export default function RankingScreen() {
   const router = useRouter();
   const { theme: C } = useMonoTheme();
+  const insets = useSafeAreaInsets();
   const s = useMemo(() => createStyles(C), [C]);
+  const bottomSpace = getBottomNavSpace(insets.bottom);
   const [sessions, setSessions] = useState<StudySession[]>([]);
 
   useEffect(() => {
@@ -73,7 +77,7 @@ export default function RankingScreen() {
         <View style={s.headerSpacer} />
       </View>
 
-      <ScrollView contentContainerStyle={s.content}>
+      <ScrollView contentContainerStyle={[s.content, { paddingBottom: bottomSpace + 24 }]}>
         <View style={s.heroCard}>
           <Text style={s.heroLabel}>최고 단일 세션</Text>
           <Text style={s.heroValue}>
@@ -85,6 +89,7 @@ export default function RankingScreen() {
         <RankSection title="과목 랭킹" items={subjectRanking} styles={s} />
         <RankSection title="날짜 랭킹" items={dayRanking} styles={s} />
       </ScrollView>
+      <BottomNav />
     </View>
   );
 }
@@ -125,19 +130,19 @@ const createStyles = (C: MonoTheme) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: C.bg, paddingTop: 58, paddingHorizontal: 20 },
     header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 22 },
-    iconButton: { width: 38, height: 38, borderWidth: 1, borderColor: C.border, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: C.surface },
+    iconButton: { width: 38, height: 38, borderWidth: 1, borderBottomWidth: 3, borderColor: C.border, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: C.surface },
     headerSpacer: { width: 38 },
     title: { color: C.text, fontSize: 24, fontWeight: "800" },
-    content: { paddingBottom: 40 },
-    heroCard: { borderWidth: 1, borderColor: C.border, borderRadius: 16, padding: 18, backgroundColor: C.surface, marginBottom: 22 },
+    content: {},
+    heroCard: { borderWidth: 1, borderBottomWidth: 4, borderColor: C.border, borderRadius: 16, padding: 18, backgroundColor: C.surface, marginBottom: 22 },
     heroLabel: { color: C.text, fontSize: 12, fontWeight: "700" },
     heroValue: { color: C.text, fontSize: 28, fontWeight: "900", marginTop: 6 },
     heroMeta: { color: C.text, fontSize: 13, fontWeight: "700", marginTop: 6 },
     section: { marginBottom: 24 },
     sectionTitle: { color: C.text, fontSize: 15, fontWeight: "900", marginBottom: 10 },
     emptyText: { color: C.text, borderWidth: 1, borderColor: C.border, borderRadius: 14, padding: 16 },
-    rankRow: { flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: C.border, borderRadius: 14, padding: 12, marginBottom: 10, backgroundColor: C.surface },
-    rankBadge: { width: 34, height: 34, borderWidth: 1, borderColor: C.border, borderRadius: 10, alignItems: "center", justifyContent: "center", marginRight: 12 },
+    rankRow: { flexDirection: "row", alignItems: "center", borderWidth: 1, borderBottomWidth: 3, borderColor: C.border, borderRadius: 14, padding: 12, marginBottom: 10, backgroundColor: C.surface },
+    rankBadge: { width: 34, height: 34, borderWidth: 1, borderBottomWidth: 2, borderColor: C.border, borderRadius: 10, alignItems: "center", justifyContent: "center", marginRight: 12 },
     rankBadgeText: { color: C.text, fontWeight: "900" },
     rankBody: { flex: 1 },
     rankName: { color: C.text, fontSize: 14, fontWeight: "800" },

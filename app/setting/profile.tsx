@@ -152,6 +152,7 @@ const createStyles = (C: MonoTheme) =>
       height: 120,
       borderRadius: 60,
       borderWidth: 1,
+      borderBottomWidth: 3,
       borderColor: C.border,
     },
     placeholder: {
@@ -162,6 +163,7 @@ const createStyles = (C: MonoTheme) =>
       justifyContent: "center",
       alignItems: "center",
       borderWidth: 1,
+      borderBottomWidth: 4,
       borderColor: C.border,
     },
     placeholderText: {
@@ -179,6 +181,7 @@ const createStyles = (C: MonoTheme) =>
       padding: 12,
       color: C.text,
       borderWidth: 1,
+      borderBottomWidth: 4,
       borderColor: C.border,
     },
     typeContainer: {

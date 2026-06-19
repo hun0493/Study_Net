@@ -171,6 +171,7 @@ const createStyles = (C: MonoTheme) => {
       width: 38,
       height: 38,
       borderWidth: 1,
+      borderBottomWidth: 3,
       borderColor: C.border,
       borderRadius: 10,
       alignItems: "center",
@@ -190,6 +191,7 @@ const createStyles = (C: MonoTheme) => {
     },
     section: {
       borderWidth: 1,
+      borderBottomWidth: 4,
       borderColor: C.border,
       borderRadius: 16,
       padding: 16,
@@ -218,6 +220,7 @@ const createStyles = (C: MonoTheme) => {
       flex: 1,
       minHeight: 44,
       borderWidth: 1,
+      borderBottomWidth: 3,
       borderColor: C.border,
       borderRadius: 12,
       backgroundColor: C.surface,
@@ -228,6 +231,7 @@ const createStyles = (C: MonoTheme) => {
     },
     optionButtonActive: {
       borderWidth: 2,
+      borderBottomWidth: 4,
     },
     optionText: {
       color: C.text,

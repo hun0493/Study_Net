@@ -12,7 +12,9 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import BottomNav, { getBottomNavSpace } from "../../components/BottomNav";
 import { useMonoTheme, type MonoTheme } from "../../constants/mono";
 
 type UserProfile = {
@@ -25,7 +27,9 @@ type UserProfile = {
 export default function SettingsScreen() {
   const router = useRouter();
   const { theme: C, isDark, toggleMode } = useMonoTheme();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(C), [C]);
+  const bottomSpace = getBottomNavSpace(insets.bottom);
 
   const [notifications, setNotifications] = useState(true);
   const [name, setName] = useState("Study User");
@@ -79,7 +83,7 @@ export default function SettingsScreen() {
         <View style={styles.headerSpacer} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomSpace + 24 }]}>
         <View style={styles.profileCard}>
           <View style={styles.avatar}>
             {image ? (
@@ -171,6 +175,7 @@ export default function SettingsScreen() {
           <Text style={styles.logoutText}>로그아웃</Text>
         </TouchableOpacity>
       </ScrollView>
+      <BottomNav />
     </View>
   );
 }
@@ -244,6 +249,7 @@ const createStyles = (C: MonoTheme) =>
       height: 32,
       borderRadius: 16,
       borderWidth: 1,
+      borderBottomWidth: 3,
       borderColor: C.border,
       backgroundColor: C.surface,
       justifyContent: "center",
@@ -260,6 +266,7 @@ const createStyles = (C: MonoTheme) =>
     profileCard: {
       backgroundColor: C.surface,
       borderWidth: 1,
+      borderBottomWidth: 3,
       borderColor: C.border,
       borderRadius: 18,
       padding: 18,
@@ -276,6 +283,7 @@ const createStyles = (C: MonoTheme) =>
       height: 54,
       borderRadius: 27,
       borderWidth: 1,
+      borderBottomWidth: 3,
       borderColor: C.border,
       backgroundColor: C.surface,
       justifyContent: "center",
@@ -303,6 +311,7 @@ const createStyles = (C: MonoTheme) =>
       paddingVertical: 4,
       borderRadius: 999,
       borderWidth: 1,
+      borderBottomWidth: 4,
       borderColor: C.border,
       marginTop: 6,
     },
@@ -323,6 +332,7 @@ const createStyles = (C: MonoTheme) =>
       backgroundColor: C.surface,
       marginLeft: 10,
       borderWidth: 1,
+      borderBottomWidth: 4,
       borderColor: C.border,
     },
     editText: {

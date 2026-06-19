@@ -203,6 +203,7 @@ const createStyles = (C: MonoTheme) =>
       borderRadius: 18,
       padding: 20,
       borderWidth: 1,
+      borderBottomWidth: 3,
       borderColor: C.border,
     },
     label: {
@@ -217,6 +218,7 @@ const createStyles = (C: MonoTheme) =>
       backgroundColor: C.surface,
       borderRadius: 12,
       borderWidth: 1,
+      borderBottomWidth: 4,
       borderColor: C.border,
       paddingHorizontal: 12,
     },

@@ -20,6 +20,8 @@ import {
   View,
 } from "react-native";
 import Svg, { Circle, Defs, LinearGradient, Stop } from "react-native-svg";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import BottomNav, { getBottomNavSpace } from "../components/BottomNav";
 import { useMonoTheme, type MonoTheme } from "../constants/mono";
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
@@ -42,18 +44,19 @@ const createLegacyTheme = (theme: MonoTheme) => ({
 
 type LegacyTheme = ReturnType<typeof createLegacyTheme>;
 
-const SUBJECT_COLORS = [
-  "#000",
-  "#000",
-  "#000",
-  "#000",
-  "#000",
-  "#000",
-  "#000",
-  "#000",
+const KEY_ACTIVE = "active_session";
+
+const DEFAULT_DDAY_ITEMS = [
+  { title: "수능", targetDate: "2026-11-19" },
+  { title: "중간고사", targetDate: "2026-10-12" },
+  { title: "토익", targetDate: "2026-07-26" },
 ];
 
-const KEY_ACTIVE = "active_session";
+const DEFAULT_FRIEND_STATUSES = [
+  { name: "김민준", subject: "수학", status: "studying", minutes: 42 },
+  { name: "이지우", subject: "휴식", status: "resting", minutes: 8 },
+  { name: "박서연", subject: "영어", status: "offline", minutes: 0 },
+];
 
 // ─── Date utility ─────────────────────────────────────────────────────────────
 const toDateKey = (date: Date): string =>
@@ -141,7 +144,7 @@ function SessionProvider({ children }: { children: React.ReactNode }) {
 }
 
 // ─── ActiveSessionBanner ──────────────────────────────────────────────────────
-function ActiveSessionBanner() {
+function ActiveSessionBanner({ bottomOffset }: { bottomOffset: number }) {
   const router = useRouter();
   const { theme } = useMonoTheme();
   const C = useMemo(() => createLegacyTheme(theme), [theme]);
@@ -176,7 +179,10 @@ function ActiveSessionBanner() {
 
   return (
     <Animated.View
-      style={[bs.banner, { transform: [{ translateY: slideAnim }] }]}
+      style={[
+        bs.banner,
+        { bottom: bottomOffset, transform: [{ translateY: slideAnim }] },
+      ]}
     >
       <View style={bs.progressTrack}>
         <View style={[bs.progressFill, { width: `${percent}%` }]} />
@@ -220,8 +226,10 @@ function MainScreenInner() {
   const router = useRouter();
   const { added } = useLocalSearchParams();
   const { theme } = useMonoTheme();
+  const insets = useSafeAreaInsets();
   const C = useMemo(() => createLegacyTheme(theme), [theme]);
   const styles = useMemo(() => createStyles(C), [C]);
+  const bottomSpace = getBottomNavSpace(insets.bottom);
 
   const {
     session: activeSession,
@@ -284,25 +292,6 @@ function MainScreenInner() {
     refreshSession();
   }, [added, loadSessions, refreshSession]);
 
-  const allSubjectNames = useMemo(
-    () => Array.from(new Set(sessions.map((s) => s.subject))) as string[],
-    [sessions]
-  );
-
-  const subjectColorMap = useMemo(() => {
-    const sorted = [...allSubjectNames].sort();
-    const map: Record<string, string> = {};
-    sorted.forEach((name, idx) => {
-      map[name] = SUBJECT_COLORS[idx % SUBJECT_COLORS.length];
-    });
-    return map;
-  }, [allSubjectNames]);
-
-  const getSubjectColor = useCallback(
-    (name: string) => subjectColorMap[name] ?? SUBJECT_COLORS[0],
-    [subjectColorMap]
-  );
-
   const todaySeconds = savedSeconds + liveExtra;
   const percent = Math.min(todaySeconds / dailyGoal, 1);
   const remain = Math.max(dailyGoal - todaySeconds, 0);
@@ -335,6 +324,13 @@ function MainScreenInner() {
 
   const ringR = 30;
   const ringCirc = 2 * Math.PI * ringR;
+  const ddayItems = DEFAULT_DDAY_ITEMS.map((item) => {
+    const start = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+    const target = new Date(`${item.targetDate}T00:00:00`).getTime();
+    const daysLeft = Math.ceil((target - start) / (1000 * 60 * 60 * 24));
+    return { ...item, daysLeft };
+  });
+  const studyingFriends = DEFAULT_FRIEND_STATUSES.filter((friend) => friend.status === "studying").length;
 
   const greet = () => {
     const h = today.getHours();
@@ -542,115 +538,81 @@ function MainScreenInner() {
             </View>
           </View>
 
-          <Text style={[styles.sectionTitle, { marginTop: 4 }]}>빠른 메뉴</Text>
+          <View style={styles.ddayCard}>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionTitle}>D-DAY</Text>
+              <TouchableOpacity style={styles.sectionActionBtn} activeOpacity={0.75}>
+                <Ionicons name="add" size={14} color={C.textPrimary} />
+                <Text style={styles.sectionActionText}>추가</Text>
+              </TouchableOpacity>
+            </View>
 
-          <View style={styles.menuGrid}>
-            <QuickMenu
-              icon="bar-chart-outline"
-              label="통계"
-              color="#000"
-              onPress={() => router.push("/statistics")}
-            />
-            <QuickMenu
-              icon="calendar-outline"
-              label="달력"
-              color="#000"
-              onPress={() => router.push("/calendar")}
-            />
-            <QuickMenu
-              icon="trophy-outline"
-              label="랭킹"
-              color="#000"
-              onPress={() => router.push("/ranking")}
-            />
-            <QuickMenu
-              icon="people-outline"
-              label="그룹"
-              color="#000"
-              onPress={() => router.push("/Group")}
-            />
+            {ddayItems.map((item, index) => (
+              <View key={item.title} style={[styles.ddayItem, index > 0 && styles.ddayItemBorder]}>
+                <View style={styles.ddayLeft}>
+                  <View style={styles.ddayIcon}>
+                    <Ionicons name="flag-outline" size={15} color={C.textPrimary} />
+                  </View>
+                  <View>
+                    <Text style={styles.ddayTitle}>{item.title}</Text>
+                    <Text style={styles.ddayDate}>{item.targetDate.split("-").join(".")}</Text>
+                  </View>
+                </View>
+                <Text style={styles.ddayValue}>
+                  {item.daysLeft === 0 ? "D-DAY" : item.daysLeft > 0 ? `D-${item.daysLeft}` : `D+${Math.abs(item.daysLeft)}`}
+                </Text>
+              </View>
+            ))}
           </View>
 
-          <Text style={[styles.sectionTitle, { marginTop: 4 }]}>최근 활동</Text>
-
-          {sessions.length === 0 ? (
-            <View style={styles.emptyState}>
-              <View style={styles.emptyIcon}>
-                <Ionicons
-                  name="time-outline"
-                  size={22}
-                  color={C.textTertiary}
-                />
+          <View style={styles.friendCard}>
+            <View style={styles.sectionHeaderRow}>
+              <View>
+                <Text style={styles.sectionTitle}>친구 상태</Text>
+                <Text style={styles.friendSummary}>공부중 {studyingFriends}명</Text>
               </View>
-              <Text style={styles.emptyTitle}>아직 활동 기록이 없어요</Text>
-              <Text style={styles.emptyDesc}>학습을 시작하면 여기에 기록돼요</Text>
+              <TouchableOpacity style={styles.sectionActionBtn} activeOpacity={0.75}>
+                <Ionicons name="person-add-outline" size={14} color={C.textPrimary} />
+                <Text style={styles.sectionActionText}>친구</Text>
+              </TouchableOpacity>
             </View>
-          ) : (
-            <ScrollView
-              style={styles.activityList}
-              showsVerticalScrollIndicator={false}
-              nestedScrollEnabled
-            >
-              {sessions
-                .filter((s) => s && s.subject)  // [FIX] 깨진 데이터 방어
-                .slice()
-                .reverse()
-                .map((s, i) => {
-                  const color = getSubjectColor(s.subject);
-                  return (
-                    <View
-                      key={i}
-                      style={[
-                        styles.activityItem,
-                        i > 0 && styles.activityItemBorder,
-                      ]}
-                    >
-                      <View style={styles.activityLeft}>
-                        <View
-                          style={[
-                            styles.activityAvatar,
-                            { backgroundColor: color + "22" },
-                          ]}
-                        >
-                          <Text
-                            style={[styles.activityAvatarText, { color }]}
-                          >
-                            {s.subject[0]}
-                          </Text>
-                        </View>
-                        <View>
-                          <Text style={styles.activitySubject}>
-                            {s.subject}
-                          </Text>
-                          <Text style={styles.activityTime}>
-                            {new Date(s.date).toLocaleTimeString([], {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
-                          </Text>
-                        </View>
-                      </View>
-                      <View
-                        style={[
-                          styles.durationTag,
-                          { backgroundColor: color + "22" },
-                        ]}
-                      >
-                        <Text style={[styles.durationTagText, { color }]}>
-                          +{Math.floor(s.seconds / 60)}분
-                        </Text>
-                      </View>
-                    </View>
-                  );
-                })}
-            </ScrollView>
-          )}
 
-          <View style={{ height: 80 }} />
+            {DEFAULT_FRIEND_STATUSES.map((friend, index) => {
+              const isStudying = friend.status === "studying";
+              const isResting = friend.status === "resting";
+              const statusLabel = isStudying ? "공부중" : isResting ? "쉬는중" : "오프라인";
+              const detailLabel = isStudying
+                ? `${friend.subject} ${friend.minutes}분째`
+                : isResting
+                  ? `${friend.minutes}분 휴식중`
+                  : "나중에 다시 확인";
+
+              return (
+                <View key={friend.name} style={[styles.friendItem, index > 0 && styles.friendItemBorder]}>
+                  <View style={styles.friendLeft}>
+                    <View style={styles.friendAvatar}>
+                      <Text style={styles.friendAvatarText}>{friend.name.slice(0, 1)}</Text>
+                    </View>
+                    <View style={styles.friendTextWrap}>
+                      <Text style={styles.friendName} numberOfLines={1}>{friend.name}</Text>
+                      <Text style={styles.friendDetail} numberOfLines={1}>{detailLabel}</Text>
+                    </View>
+                  </View>
+                  <View style={[styles.friendStatusPill, !isStudying && styles.friendStatusPillMuted]}>
+                    <View style={[styles.friendStatusDot, !isStudying && styles.friendStatusDotMuted]} />
+                    <Text style={styles.friendStatusText}>{statusLabel}</Text>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+
+          <View style={{ height: bottomSpace + 18 }} />
         </ScrollView>
       </View>
 
-      <ActiveSessionBanner />
+      <ActiveSessionBanner bottomOffset={bottomSpace + 14} />
+      <BottomNav />
     </View>
   );
 }
@@ -664,47 +626,10 @@ export default function MainScreen() {
   );
 }
 
-// ─── QuickMenu ────────────────────────────────────────────────────────────────
-function QuickMenu({
-  icon,
-  label,
-  comingSoon,
-  onPress,
-}: {
-  icon: any;
-  label: string;
-  color: string;
-  comingSoon?: boolean;
-  onPress?: () => void;
-}) {
-  const { theme } = useMonoTheme();
-  const C = useMemo(() => createLegacyTheme(theme), [theme]);
-  const styles = useMemo(() => createStyles(C), [C]);
-
-  return (
-    <TouchableOpacity
-      style={[styles.quickItem, comingSoon && { opacity: 0.45 }]}
-      activeOpacity={comingSoon ? 1 : 0.8}
-      onPress={!comingSoon ? onPress : undefined}
-    >
-      <View style={styles.quickIconBox}>
-        <Ionicons name={icon} size={22} color={C.textPrimary} />
-      </View>
-      <Text style={styles.quickLabel}>{label}</Text>
-      {comingSoon && (
-        <View style={styles.comingSoonBadge}>
-          <Text style={styles.comingSoonText}>준비중</Text>
-        </View>
-      )}
-    </TouchableOpacity>
-  );
-}
-
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const createBannerStyles = (C: LegacyTheme) => StyleSheet.create({
   banner: {
     position: "absolute",
-    bottom: 24,
     left: 16,
     right: 16,
     backgroundColor: C.surfaceElevated,
@@ -1015,6 +940,171 @@ const createStyles = (C: LegacyTheme) => StyleSheet.create({
     letterSpacing: 2,
     textTransform: "uppercase",
     marginBottom: 14,
+  },
+  sectionHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 14,
+  },
+  sectionActionBtn: {
+    minHeight: 32,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    backgroundColor: C.surface,
+    borderWidth: 1,
+    borderBottomWidth: 3,
+    borderColor: C.border,
+  },
+  sectionActionText: {
+    color: C.textPrimary,
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  ddayCard: {
+    backgroundColor: C.surfaceElevated,
+    borderRadius: 22,
+    padding: 18,
+    marginBottom: 18,
+    borderWidth: 1,
+    borderBottomWidth: 4,
+    borderColor: C.border,
+  },
+  ddayItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 12,
+  },
+  ddayItemBorder: {
+    borderTopWidth: 1,
+    borderTopColor: C.border,
+  },
+  ddayLeft: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingRight: 12,
+  },
+  ddayIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: C.surface,
+    borderWidth: 1,
+    borderColor: C.border,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  ddayTitle: {
+    color: C.textPrimary,
+    fontSize: 14,
+    fontWeight: "800",
+    marginBottom: 3,
+  },
+  ddayDate: {
+    color: C.textTertiary,
+    fontSize: 11,
+    fontVariant: ["tabular-nums"],
+  },
+  ddayValue: {
+    color: C.textPrimary,
+    fontSize: 18,
+    fontWeight: "900",
+    fontVariant: ["tabular-nums"],
+  },
+  friendCard: {
+    backgroundColor: C.surfaceElevated,
+    borderRadius: 22,
+    padding: 18,
+    borderWidth: 1,
+    borderBottomWidth: 4,
+    borderColor: C.border,
+  },
+  friendSummary: {
+    color: C.textPrimary,
+    fontSize: 13,
+    fontWeight: "800",
+    marginTop: -6,
+  },
+  friendItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 13,
+    gap: 10,
+  },
+  friendItemBorder: {
+    borderTopWidth: 1,
+    borderTopColor: C.border,
+  },
+  friendLeft: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    minWidth: 0,
+  },
+  friendAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 13,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: C.surface,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  friendAvatarText: {
+    color: C.textPrimary,
+    fontSize: 14,
+    fontWeight: "900",
+  },
+  friendTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  friendName: {
+    color: C.textPrimary,
+    fontSize: 14,
+    fontWeight: "800",
+    marginBottom: 3,
+  },
+  friendDetail: {
+    color: C.textTertiary,
+    fontSize: 11,
+  },
+  friendStatusPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: C.surface,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  friendStatusPillMuted: {
+    opacity: 0.68,
+  },
+  friendStatusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: C.textPrimary,
+  },
+  friendStatusDotMuted: {
+    backgroundColor: C.textTertiary,
+  },
+  friendStatusText: {
+    color: C.textPrimary,
+    fontSize: 10,
+    fontWeight: "900",
   },
   menuGrid: {
     flexDirection: "row",

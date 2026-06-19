@@ -194,6 +194,7 @@ const createStyles = (C: MonoTheme) =>
       width: 44,
       height: 44,
       borderWidth: 1,
+      borderBottomWidth: 3,
       borderColor: C.border,
       borderRadius: 12,
       alignItems: "center",
@@ -212,6 +213,7 @@ const createStyles = (C: MonoTheme) =>
       borderRadius: 16,
       marginBottom: 20,
       borderWidth: 1,
+      borderBottomWidth: 3,
       borderColor: C.border,
     },
     input: {
@@ -221,6 +223,7 @@ const createStyles = (C: MonoTheme) =>
       paddingVertical: 12,
       borderRadius: 12,
       borderWidth: 1,
+      borderBottomWidth: 4,
       borderColor: C.border,
     },
     inputButtons: {
@@ -233,6 +236,7 @@ const createStyles = (C: MonoTheme) =>
       paddingHorizontal: 16,
       paddingVertical: 8,
       borderWidth: 1,
+      borderBottomWidth: 4,
       borderColor: C.border,
       borderRadius: 10,
     },

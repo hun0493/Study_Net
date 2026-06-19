@@ -9,7 +9,9 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import BottomNav, { getBottomNavSpace } from "../components/BottomNav";
 import { useMonoTheme, type MonoTheme } from "../constants/mono";
 import {
   formatStudyDuration,
@@ -40,7 +42,9 @@ const compactDuration = (seconds: number) => {
 export default function CalendarScreen() {
   const router = useRouter();
   const { theme: C } = useMonoTheme();
+  const insets = useSafeAreaInsets();
   const s = useMemo(() => createStyles(C), [C]);
+  const bottomSpace = getBottomNavSpace(insets.bottom);
   const [sessions, setSessions] = useState<StudySession[]>([]);
   const [cursor, setCursor] = useState(() => new Date());
   const [selectedKey, setSelectedKey] = useState(() => toDateKey(new Date()));
@@ -200,7 +204,10 @@ export default function CalendarScreen() {
         </View>
       </View>
 
-      <ScrollView style={s.detail} contentContainerStyle={s.detailContent}>
+      <ScrollView
+        style={s.detail}
+        contentContainerStyle={[s.detailContent, { paddingBottom: bottomSpace + 24 }]}
+      >
         <View style={s.detailHeader}>
           <Text style={s.sectionTitle}>{selectedKey}</Text>
           <Text style={s.detailTotal}>{formatStudyDuration(selectedTotal)}</Text>
@@ -225,6 +232,7 @@ export default function CalendarScreen() {
           ))
         )}
       </ScrollView>
+      <BottomNav />
     </View>
   );
 }
@@ -252,6 +260,7 @@ const createStyles = (C: MonoTheme) =>
       alignItems: "center",
       justifyContent: "center",
       backgroundColor: C.surface,
+      borderBottomWidth: 3,
     },
     title: {
       color: C.text,
@@ -268,6 +277,7 @@ const createStyles = (C: MonoTheme) =>
       justifyContent: "center",
       backgroundColor: C.surface,
       paddingHorizontal: 12,
+      borderBottomWidth: 3,
     },
     todayButtonText: {
       color: C.text,
@@ -279,6 +289,7 @@ const createStyles = (C: MonoTheme) =>
       borderColor: C.border,
       borderRadius: 18,
       backgroundColor: C.surface,
+      borderBottomWidth: 3,
       padding: 10,
     },
     monthRow: {
@@ -355,6 +366,7 @@ const createStyles = (C: MonoTheme) =>
     dayCircleActive: {
       borderColor: C.border,
       borderWidth: 2,
+      borderBottomWidth: 3,
     },
     dayText: {
       color: C.text,
@@ -392,9 +404,7 @@ const createStyles = (C: MonoTheme) =>
     detail: {
       marginTop: 18,
     },
-    detailContent: {
-      paddingBottom: 40,
-    },
+    detailContent: {},
     detailHeader: {
       flexDirection: "row",
       justifyContent: "space-between",
