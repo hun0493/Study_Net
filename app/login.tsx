@@ -84,7 +84,7 @@ export default function LoginScreen() {
     };
 
     handleGoogleResponse();
-  }, [response]);
+  }, [response, router]);
 
   // ✅ Google 로그인 버튼 핸들러
   const handleGoogleLogin = async () => {
@@ -109,7 +109,7 @@ export default function LoginScreen() {
       // TODO: await authApi.login({ email, password });
       await new Promise((res) => setTimeout(res, 1200)); // 임시 딜레이
       router.replace("/main");
-    } catch (e) {
+    } catch {
       setErrorMsg("이메일 또는 비밀번호가 올바르지 않습니다.");
     } finally {
       setLoading(false);
@@ -133,7 +133,7 @@ export default function LoginScreen() {
         useNativeDriver: true,
       }),
     ]).start();
-  }, []);
+  }, [fadeAnim, slideAnim]);
 
   return (
     <SafeAreaView style={s.safe}>
@@ -172,13 +172,13 @@ export default function LoginScreen() {
                 <Ionicons
                   name="mail-outline"
                   size={17}
-                  color={emailFocused ? "#818cf8" : "#64748b"}
+                  color={emailFocused ? "#000" : "#000"}
                 />
               </View>
               <TextInput
                 style={s.fieldInput}
                 placeholder="이메일 주소"
-                placeholderTextColor="#475569"
+                placeholderTextColor="#000"
                 keyboardType="email-address"
                 autoCapitalize="none"
                 returnKeyType="next"                          // ② 키보드 next 버튼
@@ -196,14 +196,14 @@ export default function LoginScreen() {
                 <Ionicons
                   name="lock-closed-outline"
                   size={17}
-                  color={pwFocused ? "#818cf8" : "#64748b"}
+                  color={pwFocused ? "#000" : "#000"}
                 />
               </View>
               <TextInput
                 ref={pwRef}                                   // ② ref 연결
                 style={s.fieldInput}
                 placeholder="비밀번호 (6자 이상)"
-                placeholderTextColor="#475569"
+                placeholderTextColor="#000"
                 secureTextEntry={!showPw}
                 returnKeyType="done"                          // ② 키보드 done 버튼
                 onSubmitEditing={handleLogin}                 // ② done 누르면 로그인
@@ -219,7 +219,7 @@ export default function LoginScreen() {
                 <Ionicons
                   name={showPw ? "eye-outline" : "eye-off-outline"}
                   size={18}
-                  color="#475569"
+                  color="#000"
                 />
               </TouchableOpacity>
             </View>
@@ -227,7 +227,7 @@ export default function LoginScreen() {
             {/* 에러 메시지 */}
             {errorMsg ? (
               <View style={s.errorRow}>
-                <Ionicons name="alert-circle-outline" size={14} color="#f87171" />
+                <Ionicons name="alert-circle-outline" size={14} color="#000" />
                 <Text style={s.errorText}>{errorMsg}</Text>
               </View>
             ) : null}
@@ -248,7 +248,7 @@ export default function LoginScreen() {
               disabled={!isValid || loading}                         // ① 중복 클릭 방지
             >
               {loading ? (                                           // ① 로딩 스피너
-                <ActivityIndicator color="#fff" size="small" />
+                <ActivityIndicator color="#000" size="small" />
               ) : (
                 <>
                   <Text style={[s.loginBtnText, !isValid && s.loginBtnTextDisabled]}>
@@ -257,7 +257,7 @@ export default function LoginScreen() {
                   <Ionicons
                     name="arrow-forward"
                     size={18}
-                    color={isValid ? "#fff" : "#64748b"}
+                    color="#000"
                   />
                 </>
               )}
@@ -275,21 +275,21 @@ export default function LoginScreen() {
               <SocialIconBtn
                 name="logo-google"
                 bg="#fff"
-                iconColor="#EA4335"
+                iconColor="#000"
                 onPress={handleGoogleLogin}
                 disabled={!request || googleLoading}
                 loading={googleLoading}
               />
               <SocialIconBtn
                 name="chatbubble"
-                bg="#FEE500"
-                iconColor="#3C1E1E"
+                bg="#fff"
+                iconColor="#000"
                 onPress={() => {}}
               />
               <SocialIconBtn
                 name="logo-apple"
-                bg="#1c1c1e"
-                iconColor="#fff"
+                bg="#fff"
+                iconColor="#000"
                 onPress={() => {}}
               />
             </View>
@@ -351,6 +351,8 @@ const sis = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 8,
     elevation: 4,
+    borderWidth: 1,
+    borderColor: "#000",
   },
   btnDisabled: {
     opacity: 0.6,
@@ -363,7 +365,7 @@ const sis = StyleSheet.create({
 const s = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: "#060d1a",
+    backgroundColor: "#fff",
   },
   kav: { flex: 1 },
   inner: {
@@ -378,7 +380,7 @@ const s = StyleSheet.create({
     width: 320,
     height: 320,
     borderRadius: 160,
-    backgroundColor: "#312e81",
+    backgroundColor: "#fff",
     opacity: 0.25,
     top: -80,
     right: -100,
@@ -388,7 +390,7 @@ const s = StyleSheet.create({
     width: 200,
     height: 200,
     borderRadius: 100,
-    backgroundColor: "#1e3a5f",
+    backgroundColor: "#fff",
     opacity: 0.3,
     bottom: 40,
     left: -60,
@@ -398,15 +400,15 @@ const s = StyleSheet.create({
   header: { marginBottom: 32 },
   badgeRow: { flexDirection: "row", marginBottom: 14 },
   badge: {
-    backgroundColor: "rgba(99,102,241,0.15)",
+    backgroundColor: "#fff",
     borderRadius: 20,
     paddingVertical: 5,
     paddingHorizontal: 12,
     borderWidth: 1,
-    borderColor: "rgba(99,102,241,0.35)",
+    borderColor: "#000",
   },
   badgeText: {
-    color: "#818cf8",
+    color: "#000",
     fontSize: 10,
     fontWeight: "700",
     letterSpacing: 1.5,
@@ -414,11 +416,11 @@ const s = StyleSheet.create({
   logo: {
     fontSize: 40,
     fontWeight: "900",
-    color: "#f1f5f9",
+    color: "#000",
     letterSpacing: -1,
   },
   sub: {
-    color: "#64748b",
+    color: "#000",
     fontSize: 14,
     marginTop: 4,
     fontWeight: "500",
@@ -426,11 +428,11 @@ const s = StyleSheet.create({
 
   /* 카드 */
   card: {
-    backgroundColor: "#0f172a",
+    backgroundColor: "#fff",
     borderRadius: 28,
     padding: 24,
     borderWidth: 1,
-    borderColor: "#1e293b",
+    borderColor: "#000",
     shadowColor: "#000",
     shadowOpacity: 0.4,
     shadowRadius: 24,
@@ -442,33 +444,33 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 14,
-    backgroundColor: "#1e293b",
+    backgroundColor: "#fff",
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#334155",
+    borderColor: "#000",
     overflow: "hidden",
   },
   fieldFocused: {
-    borderColor: "#6366f1",
-    backgroundColor: "#0f172a",
+    borderColor: "#000",
+    backgroundColor: "#fff",
   },
   fieldIcon: {
     width: 48,
     alignItems: "center",
     justifyContent: "center",
     borderRightWidth: 1,
-    borderRightColor: "#334155",
+    borderRightColor: "#000",
     height: 52,
   },
   fieldIconActive: {
-    borderRightColor: "#6366f1",
-    backgroundColor: "rgba(99,102,241,0.07)",
+    borderRightColor: "#000",
+    backgroundColor: "#fff",
   },
   fieldInput: {
     flex: 1,
     height: 52,
     paddingHorizontal: 14,
-    color: "#f1f5f9",
+    color: "#000",
     fontSize: 15,
   },
   eyeBtn: {
@@ -487,44 +489,46 @@ const s = StyleSheet.create({
     marginTop: -6,
   },
   errorText: {
-    color: "#f87171",
+    color: "#000",
     fontSize: 12,
     fontWeight: "500",
   },
 
   /* 비밀번호 찾기 */
   forgotRow: { alignItems: "flex-end", marginBottom: 20, marginTop: 2 },
-  forgotText: { color: "#6366f1", fontSize: 13, fontWeight: "600" },
+  forgotText: { color: "#000", fontSize: 13, fontWeight: "600" },
 
   /* 로그인 버튼 */
   loginBtn: {
-    backgroundColor: "#6366f1",
+    backgroundColor: "#fff",
     borderRadius: 16,
     height: 56,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    shadowColor: "#6366f1",
+    shadowColor: "#000",
     shadowOpacity: 0.45,
     shadowRadius: 16,
     elevation: 6,
+    borderWidth: 1,
+    borderColor: "#000",
   },
   loginBtnDisabled: {
-    backgroundColor: "#1e293b",
+    backgroundColor: "#fff",
     shadowOpacity: 0,
     elevation: 0,
     borderWidth: 1,
-    borderColor: "#334155",
+    borderColor: "#000",
   },
   loginBtnText: {
-    color: "#fff",
+    color: "#000",
     fontSize: 16,
     fontWeight: "700",
     letterSpacing: 0.3,
   },
   loginBtnTextDisabled: {
-    color: "#475569",
+    color: "#000",
   },
 
   /* 구분선 */
@@ -533,9 +537,9 @@ const s = StyleSheet.create({
     alignItems: "center",
     marginVertical: 22,
   },
-  divLine: { flex: 1, height: 1, backgroundColor: "#1e293b" },
+  divLine: { flex: 1, height: 1, backgroundColor: "#fff" },
   divText: {
-    color: "#334155",
+    color: "#000",
     fontSize: 12,
     fontWeight: "600",
     marginHorizontal: 12,
@@ -556,9 +560,9 @@ const s = StyleSheet.create({
     alignItems: "center",
     marginTop: 28,
   },
-  signupText: { color: "#475569", fontSize: 14 },
+  signupText: { color: "#000", fontSize: 14 },
   signupLink: {
-    color: "#818cf8",
+    color: "#000",
     fontSize: 14,
     fontWeight: "700",
   },

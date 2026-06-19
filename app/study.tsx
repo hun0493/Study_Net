@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Animated,
@@ -18,6 +18,7 @@ import {
   View,
 } from "react-native";
 import Svg, { Circle, Defs, LinearGradient, Stop } from "react-native-svg";
+import { useMonoTheme, type MonoTheme } from "../constants/mono";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const MAX_WIDTH = 520;
@@ -29,20 +30,27 @@ const CY = RING_SIZE / 2;
 const R = RING_SIZE / 2 - 14;
 const CIRCUMFERENCE = 2 * Math.PI * R;
 
-const C = {
-  bg: "#0A0E1A", surface: "#111827", surfaceAlt: "#1A2235",
-  border: "#1E2D42", borderMid: "#253347",
-  accent: "#2563EB", accentSoft: "#1E3A5F",
-  success: "#10B981", successSoft: "#0D2B22",
-  textPrimary: "#F8FAFC", textSecondary: "#94A3B8",
-  textTertiary: "#4B5E77", textAccent: "#60A5FA",
-  purple: "#8B5CF6", purpleSoft: "#2E1F5E",
-};
+const createStudyTheme = (theme: MonoTheme) => ({
+  bg: theme.bg,
+  surface: theme.surface,
+  surfaceAlt: theme.surfaceAlt,
+  border: theme.border,
+  borderMid: theme.border,
+  accent: theme.text,
+  accentSoft: theme.surface,
+  success: theme.text,
+  successSoft: theme.surface,
+  textPrimary: theme.text,
+  textSecondary: theme.text,
+  textTertiary: theme.text,
+  textAccent: theme.text,
+  purple: theme.text,
+  purpleSoft: theme.surface,
+  inverse: theme.inverse,
+  statusBar: theme.statusBar,
+});
 
-const SUBJECT_COLORS = [
-  "#60A5FA", "#34D399", "#FBBF24", "#A78BFA",
-  "#F87171", "#22D3EE", "#F472B6", "#A3E635",
-];
+type StudyTheme = ReturnType<typeof createStudyTheme>;
 
 interface SubjectStat {
   subject: string;
@@ -57,6 +65,13 @@ const KEY_ACTIVE = "active_session"; // 최소화된 세션 정보
 export default function StudyScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
+  const { theme } = useMonoTheme();
+  const C = useMemo(() => createStudyTheme(theme), [theme]);
+  const styles = useMemo(() => createStyles(C), [C]);
+  const subjectColors = useMemo(
+    () => [C.textPrimary, C.textPrimary, C.textPrimary, C.textPrimary],
+    [C.textPrimary],
+  );
 
   const subject =
     typeof params.subject === "string"
@@ -108,10 +123,10 @@ export default function StudyScreen() {
       }
     };
     init();
-  }, []);
+  }, [subject]);
 
   // 타이머
-  const syncTimer = () => {
+  const syncTimer = useCallback(() => {
     if (running) {
       if (!startTimeRef.current) startTimeRef.current = Date.now() - savedSecondsRef.current * 1000;
       timerRef.current = setInterval(() => {
@@ -125,12 +140,12 @@ export default function StudyScreen() {
       savedSecondsRef.current = seconds;
       startTimeRef.current = null;
     }
-  };
+  }, [running, seconds]);
 
   useEffect(() => {
     syncTimer();
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [running]);
+  }, [syncTimer]);
 
   useEffect(() => {
     const handleAppState = (nextState: AppStateStatus) => {
@@ -179,7 +194,7 @@ export default function StudyScreen() {
       setTodayTotal(total);
       const names = Object.keys(map).sort();
       const colorMap: Record<string, string> = {};
-      names.forEach((n, i) => { colorMap[n] = SUBJECT_COLORS[i % SUBJECT_COLORS.length]; });
+      names.forEach((n, i) => { colorMap[n] = subjectColors[i % subjectColors.length]; });
       setSubjectStats(
         Object.entries(map).map(([name, secs]) => ({
           subject: name, seconds: secs,
@@ -187,7 +202,7 @@ export default function StudyScreen() {
         })).sort((a, b) => b.seconds - a.seconds)
       );
     } catch {
-      setSubjectStats([{ subject, seconds, color: SUBJECT_COLORS[0], isCurrent: true }]);
+      setSubjectStats([{ subject, seconds, color: subjectColors[0], isCurrent: true }]);
       setTodayTotal(seconds);
     }
   };
@@ -257,7 +272,7 @@ export default function StudyScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={C.bg} />
+      <StatusBar barStyle={C.statusBar} backgroundColor={C.bg} />
 
       {/* HEADER */}
       <View style={styles.header}>
@@ -270,7 +285,7 @@ export default function StudyScreen() {
           <Text style={styles.headerLabel}>{isFlipped ? "TODAY  STATS" : "FOCUS  SESSION"}</Text>
         </View>
 
-        <View style={[styles.statusPill, { backgroundColor: running ? "#0D2B1D" : C.surfaceAlt }]}>
+        <View style={[styles.statusPill, { backgroundColor: running ? "#fff" : C.surfaceAlt }]}>
           <View style={[styles.statusDot, { backgroundColor: running ? C.success : C.textTertiary }]} />
           <Text style={[styles.statusText, { color: running ? C.success : C.textTertiary }]}>
             {running ? "진행중" : "일시정지"}
@@ -299,11 +314,11 @@ export default function StudyScreen() {
               <Defs>
                 <LinearGradient id="frontGrad" x1="0" y1="0" x2="1" y2="1">
                   <Stop offset="0%" stopColor={accentColor} stopOpacity="1" />
-                  <Stop offset="100%" stopColor={goalDone ? "#34D399" : "#60A5FA"} stopOpacity="1" />
+                  <Stop offset="100%" stopColor={goalDone ? "#000" : "#000"} stopOpacity="1" />
                 </LinearGradient>
               </Defs>
-              <Circle cx={CX} cy={CY} r={R} stroke={C.border} strokeWidth={3} fill="none" />
-              <Circle cx={CX} cy={CY} r={R-16} stroke={C.border} strokeWidth={1} fill="none" strokeDasharray="4 8" />
+              <Circle cx={CX} cy={CY} r={R} stroke="#fff" strokeWidth={3} fill="none" />
+              <Circle cx={CX} cy={CY} r={R-16} stroke="#fff" strokeWidth={1} fill="none" strokeDasharray="4 8" />
               <Circle
                 cx={CX} cy={CY} r={R}
                 stroke="url(#frontGrad)" strokeWidth={3} fill="none"
@@ -346,10 +361,10 @@ export default function StudyScreen() {
               <Defs>
                 <LinearGradient id="backGrad" x1="0" y1="0" x2="1" y2="1">
                   <Stop offset="0%" stopColor={C.purple} stopOpacity="1" />
-                  <Stop offset="100%" stopColor="#60A5FA" stopOpacity="1" />
+                  <Stop offset="100%" stopColor="#000" stopOpacity="1" />
                 </LinearGradient>
               </Defs>
-              <Circle cx={CX} cy={CY} r={R} stroke={C.border} strokeWidth={3} fill="none" />
+              <Circle cx={CX} cy={CY} r={R} stroke="#fff" strokeWidth={3} fill="none" />
               <Circle
                 cx={CX} cy={CY} r={R}
                 stroke="url(#backGrad)" strokeWidth={3} fill="none"
@@ -370,7 +385,7 @@ export default function StudyScreen() {
                 <View style={styles.backTopSep} />
                 <View style={styles.backTopItem}>
                   <Text style={styles.backTopLabel}>목표</Text>
-                  <Text style={[styles.backTopValue, { color: goalPercent >= 100 ? C.success : "#A78BFA" }]}>{goalPercent}<Text style={styles.backTopUnit}>%</Text></Text>
+                  <Text style={[styles.backTopValue, { color: goalPercent >= 100 ? C.success : "#000" }]}>{goalPercent}<Text style={styles.backTopUnit}>%</Text></Text>
                 </View>
               </View>
               <View style={[styles.backDivider, { marginTop: 10, marginBottom: 10 }]} />
@@ -414,7 +429,7 @@ export default function StudyScreen() {
       {/* PROGRESS BAR */}
       <View style={styles.progressWrap}>
         <View style={styles.progressTrack}>
-          <View style={[styles.progressFill, { width: `${percent * 100}%`, backgroundColor: accentColor }]} />
+          <View style={[styles.progressFill, { width: `${percent * 100}%`, backgroundColor: "#000" }]} />
         </View>
       </View>
 
@@ -459,7 +474,7 @@ export default function StudyScreen() {
           </Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.finishBtn} onPress={finishStudy} activeOpacity={0.8}>
-          <Ionicons name="stop" size={15} color="#fff" style={{ marginRight: 6 }} />
+          <Ionicons name="stop" size={15} color="#000" style={{ marginRight: 6 }} />
           <Text style={styles.finishBtnText}>세션 종료</Text>
         </TouchableOpacity>
       </View>
@@ -509,7 +524,7 @@ export default function StudyScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (C: StudyTheme) => StyleSheet.create({
   container: { flex: 1, backgroundColor: C.bg, paddingHorizontal: 24, paddingTop: 60, paddingBottom: 36 },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 24 },
   backBtn: {
@@ -538,7 +553,7 @@ const styles = StyleSheet.create({
   timeSep: { color: C.border, fontSize: 32, fontWeight: "200", marginBottom: 14 },
   remainText: { color: C.textTertiary, fontSize: 12, letterSpacing: 0.5 },
   percentLabel: { color: C.textAccent, fontSize: 11, fontWeight: "700", letterSpacing: 1, marginTop: 2 },
-  goalBadge: { flexDirection: "row", alignItems: "center", backgroundColor: C.successSoft, borderWidth: 1, borderColor: C.success + "44", borderRadius: 5, paddingHorizontal: 10, paddingVertical: 4 },
+  goalBadge: { flexDirection: "row", alignItems: "center", backgroundColor: "#fff", borderWidth: 1, borderColor: C.success + "44", borderRadius: 5, paddingHorizontal: 10, paddingVertical: 4 },
   goalBadgeText: { color: C.success, fontSize: 11, fontWeight: "600", letterSpacing: 0.5 },
   tapHint: { flexDirection: "row", alignItems: "center", marginTop: 6 },
   tapHintText: { color: C.textTertiary, fontSize: 9, letterSpacing: 0.5 },
@@ -555,15 +570,15 @@ const styles = StyleSheet.create({
   backSubjectLeft: { flexDirection: "row", alignItems: "center", gap: 5 },
   backDot: { width: 5, height: 5, borderRadius: 2.5 },
   backSubjectName: { color: C.textPrimary, fontSize: 10, fontWeight: "600", flex: 1 },
-  livePing: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.success + "22", justifyContent: "center", alignItems: "center" },
-  livePingDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: C.success },
+  livePing: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#fff" + "22", justifyContent: "center", alignItems: "center" },
+  livePingDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: "#fff" },
   backSubjectRight: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   backSubjectTime: { color: C.textSecondary, fontSize: 9, fontVariant: ["tabular-nums"] },
   backSubjectPct: { fontSize: 9, fontWeight: "700" },
   backBarTrack: { height: 2, backgroundColor: C.border, borderRadius: 1, overflow: "hidden" },
   backBarFill: { height: "100%", borderRadius: 1 },
   progressWrap: { marginBottom: 20, paddingHorizontal: 2 },
-  progressTrack: { height: 2, backgroundColor: C.border, borderRadius: 1, overflow: "hidden" },
+  progressTrack: { height: 2, backgroundColor: "#fff", borderRadius: 1, overflow: "hidden", borderWidth: 1, borderColor: "#000" },
   progressFill: { height: "100%", borderRadius: 1 },
   statsRow: { flexDirection: "row", marginBottom: 24, borderWidth: 1, borderColor: C.border, borderRadius: 10, overflow: "hidden", backgroundColor: C.surface },
   statCard: { flex: 1, paddingVertical: 14, paddingHorizontal: 12, alignItems: "center", gap: 4, position: "relative" },
@@ -572,12 +587,12 @@ const styles = StyleSheet.create({
   statCardValue: { color: C.textPrimary, fontSize: 13, fontWeight: "600", fontVariant: ["tabular-nums"] },
   btnRow: { flexDirection: "row", gap: 10 },
   pauseBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, backgroundColor: C.surface, paddingVertical: 16, borderRadius: 10, borderWidth: 1, borderColor: C.border },
-  pauseBtnActive: { borderColor: C.accent + "60", backgroundColor: C.accentSoft },
+  pauseBtnActive: { borderColor: C.accent + "60", backgroundColor: "#fff" },
   pauseBtnText: { color: C.textSecondary, fontWeight: "600", fontSize: 14 },
   pauseBtnTextActive: { color: C.textAccent },
-  finishBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: C.accent, paddingVertical: 16, borderRadius: 10 },
-  finishBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center" },
+  finishBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: "#fff", paddingVertical: 16, borderRadius: 10, borderWidth: 1, borderColor: "#000" },
+  finishBtnText: { color: "#000", fontWeight: "700", fontSize: 14 },
+  modalOverlay: { flex: 1, backgroundColor: "#fff", justifyContent: "center", alignItems: "center" },
   modalContent: { width: SCREEN_WIDTH - 64, backgroundColor: C.surface, borderRadius: 16, padding: 24, borderWidth: 1, borderColor: C.border },
   modalTitle: { color: C.textPrimary, fontSize: 16, fontWeight: "700", marginBottom: 24, textAlign: "center" },
   pickerContainer: { flexDirection: "row", justifyContent: "center", alignItems: "flex-end", marginBottom: 30, gap: 15 },
@@ -587,8 +602,8 @@ const styles = StyleSheet.create({
   pickerDivider: { color: C.border, fontSize: 24, fontWeight: "300", marginBottom: 4 },
   ctrlBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: C.surfaceAlt, justifyContent: "center", alignItems: "center", borderWidth: 1, borderColor: C.border },
   ctrlVal: { color: C.textPrimary, fontSize: 22, fontWeight: "400", fontVariant: ["tabular-nums"], width: 32, textAlign: "center" },
-  saveBtn: { backgroundColor: C.accent, paddingVertical: 14, borderRadius: 10, alignItems: "center" },
-  saveBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
+  saveBtn: { backgroundColor: "#fff", paddingVertical: 14, borderRadius: 10, alignItems: "center", borderWidth: 1, borderColor: "#000" },
+  saveBtnText: { color: "#000", fontWeight: "700", fontSize: 14 },
   cancelBtn: { marginTop: 12, alignItems: "center", paddingVertical: 10 },
   cancelBtnText: { color: C.textTertiary, fontSize: 13, fontWeight: "600" },
 });

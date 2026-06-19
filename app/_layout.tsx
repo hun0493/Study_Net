@@ -1,6 +1,9 @@
 import { Stack } from "expo-router";
+import { MonoThemeProvider, useMonoTheme } from "../constants/mono";
 
-export default function RootLayout() {
+function RootStack() {
+  const { theme } = useMonoTheme();
+
   return (
     <Stack
       screenOptions={{
@@ -12,7 +15,7 @@ export default function RootLayout() {
         gestureEnabled: true,
 
         // ✅ 화면 전환 중 배경 플래시 방지
-        contentStyle: { backgroundColor: "#0f172a" },
+        contentStyle: { backgroundColor: theme.bg },
       }}
     >
       {/* 로그인 — 로그아웃 시 자연스럽게 “뒤로 복귀” 느낌 */}
@@ -20,7 +23,7 @@ export default function RootLayout() {
         name="login"
         options={{
           animation: "slide_from_left",
-          contentStyle: { backgroundColor: "#0f172a" },
+          contentStyle: { backgroundColor: theme.bg },
         }}
       />
 
@@ -29,7 +32,7 @@ export default function RootLayout() {
         name="(tabs)"
         options={{
           animation: "slide_from_right",
-          contentStyle: { backgroundColor: "#0f172a" },
+          contentStyle: { backgroundColor: theme.bg },
         }}
       />
 
@@ -39,9 +42,17 @@ export default function RootLayout() {
         options={{
           presentation: "modal",
           animation: "slide_from_bottom",
-          contentStyle: { backgroundColor: "#0f172a" },
+          contentStyle: { backgroundColor: theme.bg },
         }}
       />
     </Stack>
+  );
+}
+
+export default function RootLayout() {
+  return (
+    <MonoThemeProvider>
+      <RootStack />
+    </MonoThemeProvider>
   );
 }

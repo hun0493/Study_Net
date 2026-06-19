@@ -20,34 +20,37 @@ import {
   View,
 } from "react-native";
 import Svg, { Circle, Defs, LinearGradient, Stop } from "react-native-svg";
+import { useMonoTheme, type MonoTheme } from "../constants/mono";
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
-const C = {
-  bg: "#0A0E1A",
-  surface: "#111827",
-  surfaceAlt: "#151D2E",
-  surfaceElevated: "#141D2F",
-  border: "rgba(255,255,255,0.06)",
-  accent: "#3B82F6",
-  accentLight: "#93C5FD",
-  accentSoft: "#1E3A5F",
-  success: "#10B981",
-  successSoft: "#0D2B22",
-  textPrimary: "#F8FAFC",
-  textSecondary: "#CBD5E1",
-  textTertiary: "#64748B",
-  glow: "rgba(59,130,246,0.12)",
-};
+const createLegacyTheme = (theme: MonoTheme) => ({
+  bg: theme.bg,
+  surface: theme.surface,
+  surfaceAlt: theme.surfaceAlt,
+  surfaceElevated: theme.surface,
+  border: theme.border,
+  accent: theme.text,
+  accentLight: theme.text,
+  accentSoft: theme.surface,
+  success: theme.text,
+  successSoft: theme.surface,
+  textPrimary: theme.text,
+  textSecondary: theme.text,
+  textTertiary: theme.text,
+  glow: theme.surface,
+});
+
+type LegacyTheme = ReturnType<typeof createLegacyTheme>;
 
 const SUBJECT_COLORS = [
-  "#60A5FA",
-  "#34D399",
-  "#FBBF24",
-  "#A78BFA",
-  "#F87171",
-  "#22D3EE",
-  "#F472B6",
-  "#A3E635",
+  "#000",
+  "#000",
+  "#000",
+  "#000",
+  "#000",
+  "#000",
+  "#000",
+  "#000",
 ];
 
 const KEY_ACTIVE = "active_session";
@@ -140,6 +143,9 @@ function SessionProvider({ children }: { children: React.ReactNode }) {
 // ─── ActiveSessionBanner ──────────────────────────────────────────────────────
 function ActiveSessionBanner() {
   const router = useRouter();
+  const { theme } = useMonoTheme();
+  const C = useMemo(() => createLegacyTheme(theme), [theme]);
+  const bs = useMemo(() => createBannerStyles(C), [C]);
   const { session, elapsed } = useContext(SessionContext);
   const slideAnim = useRef(new Animated.Value(100)).current;
   const isActive = !!session;
@@ -198,7 +204,7 @@ function ActiveSessionBanner() {
             <Ionicons
               name="play"
               size={11}
-              color="#fff"
+              color="#000"
               style={{ marginRight: 4 }}
             />
             <Text style={bs.resumeText}>돌아가기</Text>
@@ -213,6 +219,9 @@ function ActiveSessionBanner() {
 function MainScreenInner() {
   const router = useRouter();
   const { added } = useLocalSearchParams();
+  const { theme } = useMonoTheme();
+  const C = useMemo(() => createLegacyTheme(theme), [theme]);
+  const styles = useMemo(() => createStyles(C), [C]);
 
   const {
     session: activeSession,
@@ -322,7 +331,7 @@ function MainScreenInner() {
   });
 
   const accentColor = goalDone ? C.success : C.accent;
-  const accentLightColor = goalDone ? "#34D399" : C.accentLight;
+  const accentLightColor = goalDone ? "#000" : C.accentLight;
 
   const ringR = 30;
   const ringCirc = 2 * Math.PI * ringR;
@@ -367,7 +376,7 @@ function MainScreenInner() {
               <Ionicons
                 name="alert-circle-outline"
                 size={14}
-                color="#F87171"
+                color="#000"
                 style={{ marginRight: 6 }}
               />
               <Text style={styles.errorText}>{loadError}</Text>
@@ -417,7 +426,7 @@ function MainScreenInner() {
                     cx="41"
                     cy="41"
                     r={ringR}
-                    stroke={C.border}
+                    stroke="#fff"
                     strokeWidth={4}
                     fill="none"
                   />
@@ -450,7 +459,7 @@ function MainScreenInner() {
                   styles.progressFill,
                   {
                     width: `${percent * 100}%`,
-                    backgroundColor: accentColor,
+                    backgroundColor: "#000",
                   },
                 ]}
               />
@@ -479,7 +488,7 @@ function MainScreenInner() {
               {hasActiveSession ? (
                 <>
                   <TouchableOpacity
-                    style={[styles.startBtn, { backgroundColor: C.success }]}
+                    style={[styles.startBtn, { backgroundColor: "#fff" }]}
                     activeOpacity={0.85}
                     onPress={() => {
                       if (activeSession) {
@@ -493,7 +502,7 @@ function MainScreenInner() {
                     <Ionicons
                       name="play"
                       size={15}
-                      color="#fff"
+                      color="#000"
                       style={{ marginRight: 8 }}
                     />
                     <Text style={styles.startBtnText}>돌아가기</Text>
@@ -516,7 +525,7 @@ function MainScreenInner() {
                     <Ionicons
                       name="play"
                       size={15}
-                      color="#fff"
+                      color="#000"
                       style={{ marginRight: 8 }}
                     />
                     <Text style={styles.startBtnText}>학습 시작</Text>
@@ -539,25 +548,25 @@ function MainScreenInner() {
             <QuickMenu
               icon="bar-chart-outline"
               label="통계"
-              color="#60A5FA"
-              comingSoon
+              color="#000"
+              onPress={() => router.push("/statistics")}
             />
             <QuickMenu
               icon="calendar-outline"
               label="달력"
-              color="#34D399"
-              comingSoon
+              color="#000"
+              onPress={() => router.push("/calendar")}
             />
             <QuickMenu
               icon="trophy-outline"
               label="랭킹"
-              color="#FBBF24"
-              comingSoon
+              color="#000"
+              onPress={() => router.push("/ranking")}
             />
             <QuickMenu
               icon="people-outline"
               label="그룹"
-              color="#A78BFA"
+              color="#000"
               onPress={() => router.push("/Group")}
             />
           </View>
@@ -659,7 +668,6 @@ export default function MainScreen() {
 function QuickMenu({
   icon,
   label,
-  color,
   comingSoon,
   onPress,
 }: {
@@ -669,16 +677,18 @@ function QuickMenu({
   comingSoon?: boolean;
   onPress?: () => void;
 }) {
+  const { theme } = useMonoTheme();
+  const C = useMemo(() => createLegacyTheme(theme), [theme]);
+  const styles = useMemo(() => createStyles(C), [C]);
+
   return (
     <TouchableOpacity
       style={[styles.quickItem, comingSoon && { opacity: 0.45 }]}
       activeOpacity={comingSoon ? 1 : 0.8}
       onPress={!comingSoon ? onPress : undefined}
     >
-      <View
-        style={[styles.quickIconBox, { backgroundColor: color + "15" }]}
-      >
-        <Ionicons name={icon} size={22} color={color} />
+      <View style={styles.quickIconBox}>
+        <Ionicons name={icon} size={22} color={C.textPrimary} />
       </View>
       <Text style={styles.quickLabel}>{label}</Text>
       {comingSoon && (
@@ -691,7 +701,7 @@ function QuickMenu({
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
-const bs = StyleSheet.create({
+const createBannerStyles = (C: LegacyTheme) => StyleSheet.create({
   banner: {
     position: "absolute",
     bottom: 24,
@@ -714,7 +724,7 @@ const bs = StyleSheet.create({
   },
   progressFill: {
     height: "100%",
-    backgroundColor: C.success,
+    backgroundColor: "#fff",
   },
   inner: {
     flexDirection: "row",
@@ -732,7 +742,7 @@ const bs = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 999,
-    backgroundColor: C.success,
+    backgroundColor: "#fff",
   },
   subject: {
     color: C.textPrimary,
@@ -756,19 +766,21 @@ const bs = StyleSheet.create({
   resumeBtn: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: C.accent,
+    backgroundColor: "#fff",
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#000",
   },
   resumeText: {
-    color: "#fff",
+    color: "#000",
     fontSize: 12,
     fontWeight: "700",
   },
 });
 
-const styles = StyleSheet.create({
+const createStyles = (C: LegacyTheme) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: C.bg,
@@ -814,16 +826,16 @@ const styles = StyleSheet.create({
   errorBanner: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#2D1515",
+    backgroundColor: "#fff",
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 10,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: "rgba(248,113,113,0.25)",
+    borderColor: "#000",
   },
   errorText: {
-    color: "#F87171",
+    color: "#000",
     fontSize: 12,
     flex: 1,
   },
@@ -865,7 +877,7 @@ const styles = StyleSheet.create({
   goalBadge: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: C.successSoft,
+    backgroundColor: "#fff",
     borderRadius: 8,
     paddingHorizontal: 8,
     paddingVertical: 4,
@@ -923,10 +935,12 @@ const styles = StyleSheet.create({
   },
   progressTrack: {
     height: 4,
-    backgroundColor: C.border,
+    backgroundColor: "#fff",
     borderRadius: 999,
     overflow: "hidden",
     marginBottom: 20,
+    borderWidth: 1,
+    borderColor: "#000",
   },
   progressFill: {
     height: "100%",
@@ -968,7 +982,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: C.accent,
+    backgroundColor: "#fff",
     paddingVertical: 16,
     borderRadius: 18,
     shadowColor: C.accent,
@@ -976,9 +990,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.35,
     shadowRadius: 18,
     elevation: 8,
+    borderWidth: 1,
+    borderColor: "#000",
   },
   startBtnText: {
-    color: "#fff",
+    color: "#000",
     fontSize: 14,
     fontWeight: "700",
   },

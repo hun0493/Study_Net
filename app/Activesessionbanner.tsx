@@ -11,7 +11,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Animated,
   StyleSheet,
@@ -21,11 +21,11 @@ import {
 } from "react-native";
 
 const C = {
-  bg: "#0A0E1A", surface: "#111827", surfaceAlt: "#1A2235",
-  border: "#1E2D42", accent: "#2563EB",
-  success: "#10B981",
-  textPrimary: "#F8FAFC", textSecondary: "#94A3B8",
-  textTertiary: "#4B5E77", textAccent: "#60A5FA",
+  bg: "#fff", surface: "#fff", surfaceAlt: "#fff",
+  border: "#000", accent: "#000",
+  success: "#000",
+  textPrimary: "#000", textSecondary: "#000",
+  textTertiary: "#000", textAccent: "#000",
 };
 
 const KEY_ACTIVE = "active_session";
@@ -42,14 +42,14 @@ export default function ActiveSessionBanner() {
   const slideAnim = useRef(new Animated.Value(80)).current; // 아래에서 올라오는 애니메이션
 
   // 배너 표시 / 숨김 애니메이션
-  const showBanner = (show: boolean) => {
+  const showBanner = useCallback((show: boolean) => {
     Animated.spring(slideAnim, {
       toValue: show ? 0 : 80,
       useNativeDriver: true,
       tension: 80,
       friction: 10,
     }).start();
-  };
+  }, [slideAnim]);
 
   // 주기적으로 active_session 확인 (1초마다)
   useEffect(() => {
@@ -77,7 +77,7 @@ export default function ActiveSessionBanner() {
     }, 1000);
 
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, []);
+  }, [showBanner]);
 
   const pad = (n: number) => n.toString().padStart(2, "0");
   const format = (total: number) => {
@@ -125,7 +125,7 @@ export default function ActiveSessionBanner() {
             }
             activeOpacity={0.8}
           >
-            <Ionicons name="play" size={11} color="#fff" style={{ marginRight: 4 }} />
+            <Ionicons name="play" size={11} color="#000" style={{ marginRight: 4 }} />
             <Text style={styles.resumeBtnText}>돌아가기</Text>
           </TouchableOpacity>
         </View>
@@ -154,11 +154,13 @@ const styles = StyleSheet.create({
   },
   progressTrack: {
     height: 2,
-    backgroundColor: C.border,
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#000",
   },
   progressFill: {
     height: "100%",
-    backgroundColor: C.success,
+    backgroundColor: "#000",
     borderRadius: 1,
   },
   bannerInner: {
@@ -177,7 +179,7 @@ const styles = StyleSheet.create({
     width: 7,
     height: 7,
     borderRadius: 3.5,
-    backgroundColor: C.success,
+    backgroundColor: "#fff",
   },
   bannerSubject: {
     color: C.textPrimary,
@@ -206,13 +208,15 @@ const styles = StyleSheet.create({
   resumeBtn: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: C.accent,
+    backgroundColor: "#fff",
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#000",
   },
   resumeBtnText: {
-    color: "#fff",
+    color: "#000",
     fontSize: 12,
     fontWeight: "700",
   },

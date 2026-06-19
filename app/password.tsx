@@ -76,13 +76,13 @@ export default function PasswordResetFriendly() {
             <MaterialCommunityIcons
               name="email-check-outline"
               size={50}
-              color="#818cf8"
+              color="#000"
             />
           </View>
 
           <Text style={styles.mainTitle}>메일을 보냈어요! 📬</Text>
           <Text style={styles.subText}>
-            <Text style={{ color: "#fff", fontWeight: "700" }}>{email}</Text>
+            <Text style={{ color: "#000", fontWeight: "700" }}>{email}</Text>
             {"\n"}으로 임시 링크를 발송했어요.{"\n"}
             스팸 메일함도 꼭 확인해 주세요!
           </Text>
@@ -90,7 +90,7 @@ export default function PasswordResetFriendly() {
           {/* 재발송 영역 */}
           <View style={styles.resendBox}>
             {loading ? (
-              <ActivityIndicator color="#6366f1" size="small" />
+              <ActivityIndicator color="#000" size="small" />
             ) : timer > 0 ? (
               <Text style={styles.timerText}>
                 <Text style={styles.timerNum}>{formatTimer(timer)}</Text> 후 재발송
@@ -123,7 +123,7 @@ export default function PasswordResetFriendly() {
 
       {/* 뒤로가기 버튼 */}
       <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-        <MaterialCommunityIcons name="arrow-left" size={22} color="#94a3b8" />
+        <MaterialCommunityIcons name="arrow-left" size={22} color="#000" />
       </TouchableOpacity>
 
       <View style={styles.content}>
@@ -131,14 +131,14 @@ export default function PasswordResetFriendly() {
           <MaterialCommunityIcons
             name="email-check-outline"
             size={50}
-            color="#818cf8"
+            color="#000"
           />
         </View>
 
         <Text style={styles.mainTitle}>이메일 인증</Text>
         <Text style={styles.subText}>
           입력하신 주소로{" "}
-          <Text style={{ color: "#fff", fontWeight: "700" }}>임시 링크</Text>를
+          <Text style={{ color: "#000", fontWeight: "700" }}>임시 링크</Text>를
           보내드려요.{"\n"}
           스팸 메일함도 꼭 확인해 주세요!
         </Text>
@@ -147,13 +147,13 @@ export default function PasswordResetFriendly() {
           <MaterialCommunityIcons
             name="at"
             size={20}
-            color="#6366f1"
+            color="#000"
             style={styles.atIcon}
           />
           <TextInput
             style={styles.glassInput}
             placeholder="이메일 주소 입력"
-            placeholderTextColor="#64748b"
+            placeholderTextColor="#000"
             value={email}
             onChangeText={setEmail}
             autoCapitalize="none"
@@ -165,7 +165,7 @@ export default function PasswordResetFriendly() {
             <MaterialCommunityIcons
               name={isEmailValid ? "check-circle" : "alert-circle-outline"}
               size={20}
-              color={isEmailValid ? "#34d399" : "#f87171"}
+              color={isEmailValid ? "#000" : "#000"}
               style={{ marginRight: 4 }}
             />
           )}
@@ -184,7 +184,7 @@ export default function PasswordResetFriendly() {
           disabled={!isEmailValid || loading}
         >
           {loading ? (
-            <ActivityIndicator color="#fff" size="small" />
+            <ActivityIndicator color="#000" size="small" />
           ) : (
             <Text style={[styles.sendBtnText, !isEmailValid && styles.sendBtnTextDisabled]}>
               인증 메일 발송하기
@@ -206,7 +206,7 @@ export default function PasswordResetFriendly() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#0b1220",
+    backgroundColor: "#fff",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -217,7 +217,7 @@ const styles = StyleSheet.create({
     width: 300,
     height: 300,
     borderRadius: 150,
-    backgroundColor: "rgba(99, 102, 241, 0.05)",
+    backgroundColor: "#fff",
   },
   circleDecoration2: {
     position: "absolute",
@@ -226,7 +226,7 @@ const styles = StyleSheet.create({
     width: 220,
     height: 220,
     borderRadius: 110,
-    backgroundColor: "rgba(99, 102, 241, 0.04)",
+    backgroundColor: "#fff",
   },
 
   /* 뒤로가기 */
@@ -237,9 +237,9 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 12,
-    backgroundColor: "#1e293b",
+    backgroundColor: "#fff",
     borderWidth: 1,
-    borderColor: "#334155",
+    borderColor: "#000",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -248,23 +248,23 @@ const styles = StyleSheet.create({
   iconBox: {
     width: 100,
     height: 100,
-    backgroundColor: "#1e293b",
+    backgroundColor: "#fff",
     borderRadius: 30,
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 24,
     borderWidth: 1,
-    borderColor: "#334155",
+    borderColor: "#000",
   },
   mainTitle: {
     fontSize: 24,
     fontWeight: "800",
-    color: "#fff",
+    color: "#000",
     marginBottom: 12,
   },
   subText: {
     fontSize: 15,
-    color: "#94a3b8",
+    color: "#000",
     textAlign: "center",
     lineHeight: 22,
     marginBottom: 32,
@@ -273,43 +273,45 @@ const styles = StyleSheet.create({
     width: "100%",
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#1e293b",
+    backgroundColor: "#fff",
     borderRadius: 16,
     paddingHorizontal: 16,
     marginBottom: 8,
   },
   atIcon: { marginRight: 10 },
-  glassInput: { flex: 1, paddingVertical: 18, color: "#fff", fontSize: 16 },
+  glassInput: { flex: 1, paddingVertical: 18, color: "#000", fontSize: 16 },
 
   /* 힌트 */
   hintText: { fontSize: 12, fontWeight: "500", alignSelf: "flex-start", marginBottom: 16, marginLeft: 4 },
-  hintOk: { color: "#34d399" },
-  hintErr: { color: "#f87171" },
+  hintOk: { color: "#000" },
+  hintErr: { color: "#000" },
 
   sendBtn: {
     width: "100%",
-    backgroundColor: "#6366f1",
+    backgroundColor: "#fff",
     padding: 18,
     borderRadius: 16,
     alignItems: "center",
-    shadowColor: "#6366f1",
+    shadowColor: "#000",
     shadowOpacity: 0.3,
     shadowRadius: 10,
     elevation: 5,
+    borderWidth: 1,
+    borderColor: "#000",
   },
   sendBtnDisabled: {
-    backgroundColor: "#1e293b",
+    backgroundColor: "#fff",
     shadowOpacity: 0,
     elevation: 0,
     borderWidth: 1,
-    borderColor: "#334155",
+    borderColor: "#000",
   },
-  sendBtnText: { color: "#fff", fontSize: 16, fontWeight: "700" },
-  sendBtnTextDisabled: { color: "#475569" },
+  sendBtnText: { color: "#000", fontSize: 16, fontWeight: "700" },
+  sendBtnTextDisabled: { color: "#000" },
 
   cancelBtn: { marginTop: 24 },
   cancelText: {
-    color: "#64748b",
+    color: "#000",
     fontSize: 14,
     fontWeight: "600",
     textDecorationLine: "underline",
@@ -322,10 +324,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 28,
   },
-  timerText: { color: "#64748b", fontSize: 13, fontWeight: "500" },
-  timerNum: { color: "#818cf8", fontWeight: "800" },
+  timerText: { color: "#000", fontSize: 13, fontWeight: "500" },
+  timerNum: { color: "#000", fontWeight: "800" },
   resendText: {
-    color: "#818cf8",
+    color: "#000",
     fontSize: 13,
     fontWeight: "600",
     textDecorationLine: "underline",

@@ -32,7 +32,7 @@ export default function SignupScreen() {
         <Ionicons
           name="chevron-back"
           size={24}
-          color="#0f172a"
+          color="#000"
         />
       </TouchableOpacity>
 
@@ -62,7 +62,7 @@ export default function SignupScreen() {
             <Ionicons
               name="logo-google"
               size={18}
-              color="#111"
+              color="#000"
             />
             <Text style={s.btnText}>
               Google로 계속하기
@@ -77,7 +77,7 @@ export default function SignupScreen() {
             <Ionicons
               name="logo-apple"
               size={18}
-              color="#111"
+              color="#000"
             />
             <Text style={s.btnText}>
               Apple로 계속하기
@@ -92,7 +92,7 @@ export default function SignupScreen() {
             <Ionicons
               name="chatbubble-ellipses"
               size={18}
-              color="#111"
+              color="#000"
             />
             <Text style={s.btnText}>
               Kakao로 계속하기
@@ -112,7 +112,7 @@ export default function SignupScreen() {
 const s = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: "#f8fafc",
+    backgroundColor: "#fff",
   },
 
   backButton: {
@@ -136,13 +136,13 @@ const s = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: "900",
-    color: "#0f172a",
+    color: "#000",
   },
 
   subtitle: {
     marginTop: 6,
     fontSize: 14,
-    color: "#64748b",
+    color: "#000",
   },
 
   divider: {
@@ -154,20 +154,20 @@ const s = StyleSheet.create({
   line: {
     flex: 1,
     height: 1,
-    backgroundColor: "#e2e8f0",
+    backgroundColor: "#fff",
   },
 
   dividerText: {
     marginHorizontal: 10,
     fontSize: 12,
-    color: "#94a3b8",
+    color: "#000",
     fontWeight: "600",
   },
 
   card: {
     backgroundColor: "#fff",
     borderWidth: 1,
-    borderColor: "#e2e8f0",
+    borderColor: "#000",
     borderRadius: 16,
     padding: 18,
   },
@@ -177,7 +177,7 @@ const s = StyleSheet.create({
     alignItems: "center",
     height: 52,
     borderWidth: 1,
-    borderColor: "#e2e8f0",
+    borderColor: "#000",
     borderRadius: 12,
     paddingHorizontal: 14,
     marginBottom: 16,
@@ -192,7 +192,7 @@ const s = StyleSheet.create({
     marginLeft: 10,
     fontSize: 14,
     fontWeight: "600",
-    color: "#0f172a",
+    color: "#000",
   },
 
   notice: {
@@ -201,7 +201,7 @@ const s = StyleSheet.create({
     left: 28,
     right: 28,
     fontSize: 11,
-    color: "#94a3b8",
+    color: "#000",
     textAlign: "center",
     lineHeight: 18,
   },

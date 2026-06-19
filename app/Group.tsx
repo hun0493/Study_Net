@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { get, onValue, push, ref, update } from "firebase/database";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -19,32 +19,37 @@ import {
   View,
 } from "react-native";
 import { db } from "../utils/firebaseConfig";
+import { useMonoTheme, type MonoTheme } from "../constants/mono";
 
 const { width: SW } = Dimensions.get("window");
 const CODE_LENGTH = 6;
 const MEMBER_KEY = "group_member_profile";
 const ACTIVE_SESSION_KEY = "active_session";
 
-const C = {
-  bg: "#0A0E1A",
-  surface: "#111827",
-  surfaceAlt: "#1A2235",
-  border: "#1E2D42",
-  borderMid: "#253347",
-  accent: "#2563EB",
-  cafe: "#C9A86A",
-  cafeSoft: "#2B2418",
-  success: "#10B981",
-  successSoft: "#0D2B22",
-  danger: "#EF4444",
-  textPrimary: "#F8FAFC",
-  textSecondary: "#94A3B8",
-  textTertiary: "#4B5E77",
-  textAccent: "#60A5FA",
-  purple: "#7C6CF2",
-};
+const createGroupTheme = (theme: MonoTheme) => ({
+  bg: theme.bg,
+  surface: theme.surface,
+  surfaceAlt: theme.surfaceAlt,
+  border: theme.border,
+  borderMid: theme.border,
+  accent: theme.text,
+  cafe: theme.text,
+  cafeSoft: theme.surface,
+  success: theme.text,
+  successSoft: theme.surface,
+  danger: theme.text,
+  textPrimary: theme.text,
+  textSecondary: theme.text,
+  textTertiary: theme.text,
+  textAccent: theme.text,
+  purple: theme.text,
+  inverse: theme.inverse,
+  statusBar: theme.statusBar,
+});
 
-const COLORS = ["#60A5FA", "#34D399", "#FBBF24", "#A78BFA", "#F87171", "#22D3EE"];
+type GroupTheme = ReturnType<typeof createGroupTheme>;
+
+const COLORS = ["#000", "#000", "#000", "#000", "#000", "#000"];
 const EMOJIS = ["👍", "🔥", "👏", "💪"];
 const ROOM_EMOJIS = ["📚", "✏️", "💻", "🎯", "🧠"];
 const MAX_OPTIONS = [4, 6, 8, 12];
@@ -142,6 +147,9 @@ const snapshotToRoom = (id: string, raw: any): Room => ({
 
 export default function GroupScreen() {
   const router = useRouter();
+  const { theme } = useMonoTheme();
+  const C = useMemo(() => createGroupTheme(theme), [theme]);
+  const s = useMemo(() => createStyles(C), [C]);
   const [screen, setScreen] = useState<Screen>("lobby");
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
@@ -455,7 +463,7 @@ export default function GroupScreen() {
   if (screen === "lobby") {
     return (
       <View style={s.container}>
-        <StatusBar barStyle="light-content" backgroundColor={C.bg} />
+        <StatusBar barStyle={C.statusBar} backgroundColor={C.bg} />
 
         <View style={s.header}>
           <TouchableOpacity style={s.backBtn} onPress={() => router.back()}>
@@ -551,10 +559,10 @@ export default function GroupScreen() {
                 activeOpacity={0.8}
               >
                 {joining ? (
-                  <ActivityIndicator color="#fff" />
+                  <ActivityIndicator color={C.textPrimary} />
                 ) : (
                   <>
-                    <Ionicons name="enter-outline" size={15} color="#fff" style={{ marginRight: 7 }} />
+                    <Ionicons name="enter-outline" size={15} color={C.textPrimary} style={{ marginRight: 7 }} />
                     <Text style={s.enterBtnText}>입장하기</Text>
                   </>
                 )}
@@ -615,7 +623,7 @@ export default function GroupScreen() {
                 onPress={createRoom}
                 activeOpacity={0.8}
               >
-                {creating ? <ActivityIndicator color="#fff" /> : <Text style={s.enterBtnText}>만들고 입장하기</Text>}
+                {creating ? <ActivityIndicator color={C.textPrimary} /> : <Text style={s.enterBtnText}>만들고 입장하기</Text>}
               </TouchableOpacity>
             </View>
           </KeyboardAvoidingView>
@@ -640,7 +648,7 @@ export default function GroupScreen() {
 
   return (
     <View style={s.container}>
-      <StatusBar barStyle="light-content" backgroundColor={C.bg} />
+      <StatusBar barStyle={C.statusBar} backgroundColor={C.bg} />
 
       <View style={s.header}>
         <TouchableOpacity style={s.backBtn} onPress={leaveRoom}>
@@ -690,7 +698,7 @@ export default function GroupScreen() {
                 </View>
                 {m.muted && (
                   <View style={s.micOffBadge}>
-                    <Ionicons name="mic-off" size={9} color="#fff" />
+                    <Ionicons name="mic-off" size={9} color={C.textPrimary} />
                   </View>
                 )}
                 <View style={s.camInfo}>
@@ -725,10 +733,10 @@ export default function GroupScreen() {
 
       <View style={s.controls}>
         <TouchableOpacity style={[s.ctrlBtn, micOn && s.ctrlBtnActive]} onPress={() => updateMic(!micOn)} activeOpacity={0.8}>
-          <Ionicons name={micOn ? "mic" : "mic-off"} size={18} color={micOn ? "#fff" : C.textSecondary} />
+          <Ionicons name={micOn ? "mic" : "mic-off"} size={18} color={C.textPrimary} />
         </TouchableOpacity>
         <TouchableOpacity style={[s.ctrlBtn, camOn && s.ctrlBtnActive]} onPress={() => setCamOn((v) => !v)} activeOpacity={0.8}>
-          <Ionicons name={camOn ? "videocam" : "videocam-off"} size={18} color={camOn ? "#fff" : C.textSecondary} />
+          <Ionicons name={camOn ? "videocam" : "videocam-off"} size={18} color={C.textPrimary} />
         </TouchableOpacity>
         <View style={s.emojiRow}>
           {EMOJIS.map((emoji) => (
@@ -738,7 +746,7 @@ export default function GroupScreen() {
           ))}
         </View>
         <TouchableOpacity style={s.ctrlBtnDanger} onPress={leaveRoom} activeOpacity={0.8}>
-          <Ionicons name="call" size={18} color="#fff" />
+          <Ionicons name="call" size={18} color={C.textPrimary} />
         </TouchableOpacity>
       </View>
 
@@ -792,7 +800,7 @@ export default function GroupScreen() {
   );
 }
 
-const s = StyleSheet.create({
+const createStyles = (C: GroupTheme) => StyleSheet.create({
   container: { flex: 1, backgroundColor: C.bg, paddingTop: 56 },
   center: { justifyContent: "center", alignItems: "center" },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 18, paddingBottom: 14 },
@@ -801,28 +809,28 @@ const s = StyleSheet.create({
   headerTitle: { color: C.textPrimary, fontSize: 14, fontWeight: "700" },
   headerSub: { color: C.textTertiary, fontSize: 9, letterSpacing: 1.5, marginTop: 1 },
   headerRight: { flexDirection: "row", alignItems: "center", gap: 6 },
-  liveBadge: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: C.successSoft, borderWidth: 1, borderColor: C.success + "55", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
-  liveDot: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: C.success },
+  liveBadge: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
+  liveDot: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: C.textPrimary },
   liveText: { color: C.success, fontSize: 9, fontWeight: "700", letterSpacing: 1 },
   roomCountBadge: { backgroundColor: C.surfaceAlt, borderWidth: 1, borderColor: C.border, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
   roomCountText: { color: C.textSecondary, fontSize: 10, fontWeight: "600" },
   lobbyContent: { paddingHorizontal: 18, paddingBottom: 40, gap: 12 },
   lobbyPanel: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 16, padding: 20, alignItems: "center" },
-  lobbyIcon: { width: 52, height: 52, borderRadius: 14, backgroundColor: C.cafeSoft, borderWidth: 1, borderColor: C.cafe + "55", justifyContent: "center", alignItems: "center", marginBottom: 14 },
+  lobbyIcon: { width: 52, height: 52, borderRadius: 14, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, justifyContent: "center", alignItems: "center", marginBottom: 14 },
   lobbyTitle: { color: C.textPrimary, fontSize: 17, fontWeight: "800", marginBottom: 7 },
   lobbySub: { color: C.textSecondary, fontSize: 12, lineHeight: 18, textAlign: "center" },
-  errorBanner: { flexDirection: "row", alignItems: "center", backgroundColor: C.danger + "11", borderWidth: 1, borderColor: C.danger + "33", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
-  codeJoinBtn: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: C.cafeSoft, borderWidth: 1, borderColor: C.cafe + "44", borderRadius: 14, padding: 14 },
+  errorBanner: { flexDirection: "row", alignItems: "center", backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
+  codeJoinBtn: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 14, padding: 14 },
   codeJoinLeft: { flexDirection: "row", alignItems: "center", gap: 12, flex: 1 },
-  codeJoinIcon: { width: 40, height: 40, borderRadius: 11, backgroundColor: C.cafe + "18", borderWidth: 1, borderColor: C.cafe + "44", justifyContent: "center", alignItems: "center" },
+  codeJoinIcon: { width: 40, height: 40, borderRadius: 11, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, justifyContent: "center", alignItems: "center" },
   codeJoinTitle: { color: C.textPrimary, fontSize: 13, fontWeight: "700", marginBottom: 2 },
   codeJoinSub: { color: C.textTertiary, fontSize: 11 },
   createBtn: { borderWidth: 1.5, borderColor: C.border, borderStyle: "dashed", borderRadius: 14, paddingVertical: 16, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   createBtnText: { color: C.textTertiary, fontSize: 13, fontWeight: "600" },
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.75)", justifyContent: "center", alignItems: "center", paddingHorizontal: 24 },
+  modalOverlay: { flex: 1, backgroundColor: C.bg, justifyContent: "center", alignItems: "center", paddingHorizontal: 24 },
   modalCard: { width: "100%", backgroundColor: C.surface, borderRadius: 18, borderWidth: 1, borderColor: C.borderMid, padding: 22, gap: 12 },
   modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  modalIconWrap: { width: 40, height: 40, borderRadius: 12, backgroundColor: C.purple + "22", borderWidth: 1, borderColor: C.purple + "44", justifyContent: "center", alignItems: "center" },
+  modalIconWrap: { width: 40, height: 40, borderRadius: 12, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, justifyContent: "center", alignItems: "center" },
   modalCloseBtn: { width: 28, height: 28, borderRadius: 7, backgroundColor: C.surfaceAlt, borderWidth: 1, borderColor: C.border, justifyContent: "center", alignItems: "center" },
   modalTitle: { color: C.textPrimary, fontSize: 16, fontWeight: "700" },
   modalSubtitle: { color: C.textTertiary, fontSize: 12, lineHeight: 18 },
@@ -831,14 +839,14 @@ const s = StyleSheet.create({
   fieldLabel: { color: C.textTertiary, fontSize: 10, fontWeight: "700", letterSpacing: 1, marginBottom: 8 },
   maxOptionRow: { flexDirection: "row", gap: 8 },
   maxOption: { flex: 1, height: 38, borderRadius: 10, backgroundColor: C.surfaceAlt, borderWidth: 1, borderColor: C.border, justifyContent: "center", alignItems: "center" },
-  maxOptionActive: { backgroundColor: C.cafeSoft, borderColor: C.cafe + "88" },
+  maxOptionActive: { backgroundColor: C.surface, borderColor: C.border },
   maxOptionText: { color: C.textTertiary, fontSize: 12, fontWeight: "700" },
   maxOptionTextActive: { color: C.cafe },
-  errorRow: { flexDirection: "row", alignItems: "center", backgroundColor: C.danger + "11", borderWidth: 1, borderColor: C.danger + "33", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
+  errorRow: { flexDirection: "row", alignItems: "center", backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
   errorText: { color: C.danger, fontSize: 12, flex: 1 },
-  enterBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: C.purple, borderRadius: 12, paddingVertical: 15, minHeight: 50 },
-  enterBtnText: { color: "#fff", fontWeight: "700", fontSize: 15, letterSpacing: 0.5 },
-  inviteBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginHorizontal: 12, marginBottom: 10, backgroundColor: C.cafeSoft, borderWidth: 1, borderColor: C.cafe + "44", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 11 },
+  enterBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: C.surface, borderRadius: 12, paddingVertical: 15, minHeight: 50, borderWidth: 1, borderColor: C.border },
+  enterBtnText: { color: C.textPrimary, fontWeight: "700", fontSize: 15, letterSpacing: 0.5 },
+  inviteBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginHorizontal: 12, marginBottom: 10, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 11 },
   inviteLabel: { color: C.textTertiary, fontSize: 10, fontWeight: "700", letterSpacing: 1 },
   inviteCode: { color: C.textPrimary, fontSize: 20, fontWeight: "800", letterSpacing: 3, marginTop: 2 },
   ownerTag: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.cafe + "44", borderRadius: 8, paddingHorizontal: 9, paddingVertical: 5 },
@@ -853,14 +861,14 @@ const s = StyleSheet.create({
   camBg: { ...StyleSheet.absoluteFillObject, justifyContent: "center", alignItems: "center" },
   camAvatar: { width: 48, height: 48, borderRadius: 12, borderWidth: 1.5, justifyContent: "center", alignItems: "center" },
   camAvatarText: { fontSize: 20, fontWeight: "700" },
-  micOffBadge: { position: "absolute", top: 7, right: 7, width: 18, height: 18, borderRadius: 9, backgroundColor: "#EF4444CC", justifyContent: "center", alignItems: "center" },
-  camInfo: { position: "absolute", bottom: 0, left: 0, right: 0, padding: 8, backgroundColor: "rgba(10,14,26,0.78)" },
+  micOffBadge: { position: "absolute", top: 7, right: 7, width: 18, height: 18, borderRadius: 9, backgroundColor: C.surface, justifyContent: "center", alignItems: "center" },
+  camInfo: { position: "absolute", bottom: 0, left: 0, right: 0, padding: 8, backgroundColor: C.surface },
   camNameRow: { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 3 },
   camName: { color: C.textPrimary, fontSize: 11, fontWeight: "700", flex: 1 },
-  meTag: { backgroundColor: C.cafeSoft, borderWidth: 1, borderColor: C.cafe + "66", borderRadius: 3, paddingHorizontal: 4, paddingVertical: 1 },
-  meTagText: { color: "#fff", fontSize: 7, fontWeight: "700", letterSpacing: 0.5 },
+  meTag: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 3, paddingHorizontal: 4, paddingVertical: 1 },
+  meTagText: { color: C.textPrimary, fontSize: 7, fontWeight: "700", letterSpacing: 0.5 },
   camSubjectRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 6 },
-  subjectPill: { flex: 1, flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2 },
+  subjectPill: { flex: 1, flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: C.surface, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2 },
   subjectDot: { width: 4, height: 4, borderRadius: 2 },
   subjectText: { color: C.textSecondary, fontSize: 9, fontWeight: "600" },
   camTimer: { color: C.textAccent, fontSize: 10, fontWeight: "600", fontVariant: ["tabular-nums"] },
@@ -869,26 +877,26 @@ const s = StyleSheet.create({
   timerValue: { color: C.textPrimary, fontSize: 14, fontWeight: "300", fontVariant: ["tabular-nums"] },
   timerProgressWrap: { flex: 1 },
   timerProgressTrack: { height: 3, backgroundColor: C.border, borderRadius: 2, overflow: "hidden" },
-  timerProgressFill: { height: "100%", backgroundColor: C.accent, borderRadius: 2 },
+  timerProgressFill: { height: "100%", backgroundColor: C.textPrimary, borderRadius: 2 },
   timerPct: { color: C.textAccent, fontSize: 11, fontWeight: "700", maxWidth: 90 },
   controls: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingTop: 10, paddingBottom: 24, gap: 8 },
   ctrlBtn: { width: 46, height: 46, borderRadius: 14, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, justifyContent: "center", alignItems: "center" },
-  ctrlBtnActive: { backgroundColor: C.accent, borderColor: C.accent },
-  ctrlBtnDanger: { width: 46, height: 46, borderRadius: 14, backgroundColor: "#7F1D1D", borderWidth: 1, borderColor: "#EF444488", justifyContent: "center", alignItems: "center" },
+  ctrlBtnActive: { backgroundColor: C.surface, borderColor: C.accent },
+  ctrlBtnDanger: { width: 46, height: 46, borderRadius: 14, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, justifyContent: "center", alignItems: "center" },
   emojiRow: { flexDirection: "row", alignItems: "center", backgroundColor: C.surfaceAlt, borderWidth: 1, borderColor: C.border, borderRadius: 12, paddingHorizontal: 6, paddingVertical: 6, gap: 2 },
-  emojiBtn: { paddingHorizontal: 4, paddingVertical: 2 },
+  emojiBtn: { paddingHorizontal: 4, paddingVertical: 2, borderWidth: 1, borderColor: C.border, borderRadius: 8 },
   emojiBtnText: { fontSize: 16 },
   loadingText: { color: C.textTertiary, fontSize: 12, marginTop: 10 },
-  confirmOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.72)", justifyContent: "center", alignItems: "center", paddingHorizontal: 24 },
+  confirmOverlay: { flex: 1, backgroundColor: C.bg, justifyContent: "center", alignItems: "center", paddingHorizontal: 24 },
   confirmCard: { width: "100%", backgroundColor: C.surface, borderWidth: 1, borderColor: C.borderMid, borderRadius: 18, padding: 22, alignItems: "center" },
-  confirmIcon: { width: 48, height: 48, borderRadius: 14, backgroundColor: C.cafeSoft, borderWidth: 1, borderColor: C.cafe + "44", justifyContent: "center", alignItems: "center", marginBottom: 14 },
+  confirmIcon: { width: 48, height: 48, borderRadius: 14, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, justifyContent: "center", alignItems: "center", marginBottom: 14 },
   confirmTitle: { color: C.textPrimary, fontSize: 17, fontWeight: "800", textAlign: "center", marginBottom: 8 },
   confirmDesc: { color: C.textSecondary, fontSize: 12, lineHeight: 18, textAlign: "center", marginBottom: 18 },
   confirmActions: { flexDirection: "row", gap: 10, width: "100%" },
   confirmCancelBtn: { flex: 1, height: 48, borderRadius: 12, backgroundColor: C.surfaceAlt, borderWidth: 1, borderColor: C.border, justifyContent: "center", alignItems: "center" },
   confirmCancelText: { color: C.textSecondary, fontSize: 14, fontWeight: "800" },
-  confirmLeaveBtn: { flex: 1, height: 48, borderRadius: 12, backgroundColor: C.cafe, justifyContent: "center", alignItems: "center" },
-  confirmLeaveDangerBtn: { backgroundColor: "#8B1E1E", borderWidth: 1, borderColor: C.danger + "77" },
-  confirmLeaveText: { color: "#fff", fontSize: 14, fontWeight: "800" },
+  confirmLeaveBtn: { flex: 1, height: 48, borderRadius: 12, backgroundColor: C.surface, justifyContent: "center", alignItems: "center", borderWidth: 1, borderColor: C.border },
+  confirmLeaveDangerBtn: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border },
+  confirmLeaveText: { color: C.textPrimary, fontSize: 14, fontWeight: "800" },
   floatingEmoji: { position: "absolute", bottom: 90, left: "50%", marginLeft: -18 },
 });

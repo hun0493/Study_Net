@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   FlatList,
@@ -13,9 +13,8 @@ import {
   View,
 } from "react-native";
 
-/* ===============================
-   📚 기본 과목 매핑
-================================ */
+import { useMonoTheme, type MonoTheme } from "../constants/mono";
+
 const SUBJECT_MAP: Record<string, string[]> = {
   초등학생: ["국어", "수학", "영어", "사회", "과학", "체육", "음악", "미술"],
   중학생: ["국어", "수학", "영어", "과학", "사회"],
@@ -27,6 +26,8 @@ const SUBJECT_MAP: Record<string, string[]> = {
 
 export default function SubjectSelect() {
   const router = useRouter();
+  const { theme: C } = useMonoTheme();
+  const styles = useMemo(() => createStyles(C), [C]);
 
   const [subjects, setSubjects] = useState<string[]>([]);
   const [customSubjects, setCustomSubjects] = useState<string[]>([]);
@@ -38,20 +39,19 @@ export default function SubjectSelect() {
     loadSubjects();
   }, []);
 
-  /* ===============================
-     🔄 과목 불러오기
-  ================================ */
   const loadSubjects = async () => {
     const profileRaw = await AsyncStorage.getItem("userProfile");
     const profile = profileRaw ? JSON.parse(profileRaw) : null;
-
     const currentUserType = profile?.userType || "";
-    if (!currentUserType) return;
+
+    if (!currentUserType) {
+      setSubjects(["자유 공부", "국어", "수학", "영어"]);
+      return;
+    }
 
     const storageKey = `custom_subjects_${currentUserType}`;
     const customRaw = await AsyncStorage.getItem(storageKey);
     const custom = customRaw ? JSON.parse(customRaw) : [];
-
     const baseSubjects = SUBJECT_MAP[currentUserType] || [];
 
     setUserType(currentUserType);
@@ -59,26 +59,19 @@ export default function SubjectSelect() {
     setSubjects([...baseSubjects, ...custom]);
   };
 
-  /* ===============================
-     ➕ 과목 추가
-  ================================ */
   const addCustomSubject = async () => {
     if (!newSubject.trim()) return;
 
-    const storageKey = `custom_subjects_${userType}`;
+    const storageKey = `custom_subjects_${userType || "default"}`;
     const updated = [...customSubjects, newSubject.trim()];
 
     await AsyncStorage.setItem(storageKey, JSON.stringify(updated));
-
     setCustomSubjects(updated);
     setSubjects((prev) => [...prev, newSubject.trim()]);
     setNewSubject("");
     setShowInput(false);
   };
 
-  /* ===============================
-     ❌ 과목 삭제
-  ================================ */
   const deleteSubject = async (subject: string) => {
     Alert.alert("삭제", `${subject} 과목을 삭제할까요?`, [
       { text: "취소", style: "cancel" },
@@ -86,23 +79,17 @@ export default function SubjectSelect() {
         text: "삭제",
         style: "destructive",
         onPress: async () => {
-          const updated = customSubjects.filter((s) => s !== subject);
-
-          const storageKey = `custom_subjects_${userType}`;
+          const updated = customSubjects.filter((item) => item !== subject);
+          const storageKey = `custom_subjects_${userType || "default"}`;
           await AsyncStorage.setItem(storageKey, JSON.stringify(updated));
 
           setCustomSubjects(updated);
-
-          const baseSubjects = SUBJECT_MAP[userType] || [];
-          setSubjects([...baseSubjects, ...updated]);
+          setSubjects([...(SUBJECT_MAP[userType] || []), ...updated]);
         },
       },
     ]);
   };
 
-  /* ===============================
-      과목 선택
-  ================================ */
   const selectSubject = (subject: string) => {
     router.replace({
       pathname: "/study",
@@ -115,7 +102,6 @@ export default function SubjectSelect() {
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      {/* 🔥 헤더 */}
       <View style={styles.headerRow}>
         <View>
           <Text style={styles.title}>과목 선택</Text>
@@ -124,17 +110,16 @@ export default function SubjectSelect() {
           ) : null}
         </View>
 
-        <TouchableOpacity onPress={() => setShowInput(true)}>
-          <Text style={styles.plus}>＋</Text>
+        <TouchableOpacity style={styles.plusButton} onPress={() => setShowInput(true)}>
+          <Text style={styles.plus}>+</Text>
         </TouchableOpacity>
       </View>
 
-      {/* 🔥 입력 카드 */}
       {showInput && (
         <View style={styles.inputCard}>
           <TextInput
             placeholder="새 과목 입력"
-            placeholderTextColor="#999"
+            placeholderTextColor={C.text}
             value={newSubject}
             onChangeText={setNewSubject}
             style={styles.input}
@@ -152,21 +137,17 @@ export default function SubjectSelect() {
               <Text style={styles.cancelText}>취소</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.addButton}
-              onPress={addCustomSubject}
-            >
+            <TouchableOpacity style={styles.addButton} onPress={addCustomSubject}>
               <Text style={styles.addButtonText}>추가</Text>
             </TouchableOpacity>
           </View>
         </View>
       )}
 
-      {/* 🔥 과목 리스트 */}
       <FlatList
         data={subjects}
         keyExtractor={(item, index) => item + index}
-        contentContainerStyle={{ paddingBottom: 40 }}
+        contentContainerStyle={styles.listContent}
         renderItem={({ item }) => {
           const isCustom = customSubjects.includes(item);
 
@@ -177,10 +158,7 @@ export default function SubjectSelect() {
               onLongPress={() => isCustom && deleteSubject(item)}
             >
               <Text style={styles.subjectText}>{item}</Text>
-
-              {isCustom && (
-                <Text style={styles.deleteHint}>길게 눌러 삭제</Text>
-              )}
+              {isCustom && <Text style={styles.deleteHint}>길게 눌러 삭제</Text>}
             </TouchableOpacity>
           );
         }}
@@ -189,101 +167,110 @@ export default function SubjectSelect() {
   );
 }
 
-/* ===============================
-   🎨 스타일
-================================ */
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#111",
-    paddingHorizontal: 20,
-    paddingTop: 60,
-  },
-
-  headerRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 20,
-  },
-
-  title: {
-    fontSize: 26,
-    fontWeight: "bold",
-    color: "#fff",
-  },
-
-  subtitle: {
-    color: "#aaa",
-    marginTop: 6,
-  },
-
-  plus: {
-    color: "#4c8bf5",
-    fontSize: 32,
-    fontWeight: "bold",
-  },
-
-  inputCard: {
-    backgroundColor: "#1e1e1e",
-    padding: 16,
-    borderRadius: 16,
-    marginBottom: 20,
-  },
-
-  input: {
-    backgroundColor: "#111",
-    color: "#fff",
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderRadius: 12,
-  },
-
-  inputButtons: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    marginTop: 12,
-    gap: 12,
-  },
-
-  cancelBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-
-  cancelText: {
-    color: "#aaa",
-  },
-
-  addButton: {
-    backgroundColor: "#4c8bf5",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 10,
-  },
-
-  addButtonText: {
-    color: "#fff",
-    fontWeight: "bold",
-  },
-
-  subjectCard: {
-    backgroundColor: "#1e1e1e",
-    paddingVertical: 18,
-    paddingHorizontal: 20,
-    borderRadius: 16,
-    marginBottom: 14,
-  },
-
-  subjectText: {
-    color: "#fff",
-    fontSize: 18,
-    fontWeight: "500",
-  },
-
-  deleteHint: {
-    color: "#888",
-    fontSize: 12,
-    marginTop: 6,
-  },
-});
+const createStyles = (C: MonoTheme) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: C.bg,
+      paddingHorizontal: 20,
+      paddingTop: 60,
+    },
+    headerRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 20,
+    },
+    title: {
+      fontSize: 26,
+      fontWeight: "bold",
+      color: C.text,
+    },
+    subtitle: {
+      color: C.text,
+      marginTop: 6,
+    },
+    plusButton: {
+      width: 44,
+      height: 44,
+      borderWidth: 1,
+      borderColor: C.border,
+      borderRadius: 12,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: C.surface,
+    },
+    plus: {
+      color: C.text,
+      fontSize: 28,
+      fontWeight: "bold",
+      lineHeight: 30,
+    },
+    inputCard: {
+      backgroundColor: C.surface,
+      padding: 16,
+      borderRadius: 16,
+      marginBottom: 20,
+      borderWidth: 1,
+      borderColor: C.border,
+    },
+    input: {
+      backgroundColor: C.surface,
+      color: C.text,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: C.border,
+    },
+    inputButtons: {
+      flexDirection: "row",
+      justifyContent: "flex-end",
+      marginTop: 12,
+      gap: 12,
+    },
+    cancelBtn: {
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderWidth: 1,
+      borderColor: C.border,
+      borderRadius: 10,
+    },
+    cancelText: {
+      color: C.text,
+    },
+    addButton: {
+      backgroundColor: C.surface,
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: C.border,
+    },
+    addButtonText: {
+      color: C.text,
+      fontWeight: "bold",
+    },
+    listContent: {
+      paddingBottom: 40,
+    },
+    subjectCard: {
+      backgroundColor: C.surface,
+      paddingVertical: 18,
+      paddingHorizontal: 20,
+      borderRadius: 16,
+      marginBottom: 14,
+      borderWidth: 1,
+      borderColor: C.border,
+    },
+    subjectText: {
+      color: C.text,
+      fontSize: 18,
+      fontWeight: "500",
+    },
+    deleteHint: {
+      color: C.text,
+      fontSize: 12,
+      marginTop: 6,
+    },
+  });
