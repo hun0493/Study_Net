@@ -1,6 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
+import { updateProfile } from "firebase/auth";
+import { ref, update } from "firebase/database";
 import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
@@ -14,6 +16,7 @@ import {
 } from "react-native";
 
 import { useMonoTheme, type MonoTheme } from "../../constants/mono";
+import { auth, db } from "../../utils/firebaseConfig";
 
 const userTypes = ["초등학생", "중학생", "고등학생", "대학생", "취준생", "직장인"];
 
@@ -61,11 +64,38 @@ export default function ProfileScreen() {
       return;
     }
 
-    await AsyncStorage.setItem(
-      "userProfile",
-      JSON.stringify({ name, email, image, userType }),
-    );
-    router.back();
+    try {
+      const saved = await AsyncStorage.getItem("userProfile");
+      const previousProfile = saved ? JSON.parse(saved) : {};
+      const currentUser = auth.currentUser;
+      const uid = currentUser?.uid || previousProfile.uid;
+      const profile = {
+        ...previousProfile,
+        uid,
+        name: name.trim(),
+        email: email.trim(),
+        image,
+        userType,
+        updatedAt: Date.now(),
+      };
+
+      await AsyncStorage.setItem("userProfile", JSON.stringify(profile));
+
+      if (currentUser) {
+        await updateProfile(currentUser, {
+          displayName: profile.name,
+          photoURL: image || currentUser.photoURL,
+        });
+      }
+
+      if (uid) {
+        await update(ref(db, `users/${uid}`), profile);
+      }
+
+      router.back();
+    } catch {
+      Alert.alert("저장 실패", "프로필을 저장하지 못했어요. 잠시 후 다시 시도해주세요.");
+    }
   };
 
   return (
@@ -102,7 +132,7 @@ export default function ProfileScreen() {
         autoCapitalize="none"
       />
 
-      <Text style={styles.label}>학습 단계</Text>
+      <Text style={styles.label}>사용자</Text>
       <View style={styles.typeContainer}>
         {userTypes.map((type) => {
           const active = userType === type;
@@ -165,6 +195,11 @@ const createStyles = (C: MonoTheme) =>
       borderWidth: 1,
       borderBottomWidth: 4,
       borderColor: C.border,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.16,
+      shadowRadius: 2,
+      elevation: 2,
     },
     placeholderText: {
       color: C.text,
@@ -192,15 +227,26 @@ const createStyles = (C: MonoTheme) =>
       marginBottom: 20,
     },
     typeButton: {
-      paddingVertical: 8,
+      minHeight: 44,
+      flexBasis: "31%",
+      flexGrow: 1,
       paddingHorizontal: 14,
-      borderRadius: 20,
+      borderRadius: 12,
       backgroundColor: C.surface,
       borderWidth: 1,
+      borderBottomWidth: 3,
       borderColor: C.border,
+      alignItems: "center",
+      justifyContent: "center",
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.14,
+      shadowRadius: 2,
+      elevation: 2,
     },
     typeButtonActive: {
       borderWidth: 2,
+      borderBottomWidth: 4,
     },
     typeText: {
       color: C.text,
@@ -212,12 +258,19 @@ const createStyles = (C: MonoTheme) =>
     },
     saveButton: {
       backgroundColor: C.surface,
-      paddingVertical: 14,
+      minHeight: 56,
       borderRadius: 12,
       alignItems: "center",
+      justifyContent: "center",
       marginTop: 10,
       borderWidth: 1,
+      borderBottomWidth: 4,
       borderColor: C.border,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.14,
+      shadowRadius: 2,
+      elevation: 2,
     },
     saveButtonText: {
       color: C.text,

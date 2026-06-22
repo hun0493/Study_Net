@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -18,11 +19,56 @@ import {
 // ✅ Google 로그인 관련 추가 import
 import * as Google from "expo-auth-session/providers/google";
 import * as WebBrowser from "expo-web-browser";
-import { GoogleAuthProvider, signInWithCredential } from "firebase/auth";
-import { auth } from "../utils/firebaseConfig";
+import {
+  GoogleAuthProvider,
+  signInWithCredential,
+  signInWithEmailAndPassword,
+  type User,
+} from "firebase/auth";
+import { get, ref, set } from "firebase/database";
+import { auth, db } from "../utils/firebaseConfig";
 
 // ✅ 인증 세션 완료 처리 (필수, 컴포넌트 바깥에서 호출)
 WebBrowser.maybeCompleteAuthSession();
+
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const getLoginErrorMessage = (code?: string) => {
+  switch (code) {
+    case "auth/invalid-email":
+      return "이메일 형식이 올바르지 않아요.";
+    case "auth/user-disabled":
+      return "사용이 중지된 계정이에요.";
+    case "auth/user-not-found":
+    case "auth/wrong-password":
+    case "auth/invalid-credential":
+      return "이메일 또는 비밀번호가 올바르지 않아요.";
+    case "auth/network-request-failed":
+      return "네트워크 연결을 확인해주세요.";
+    default:
+      return "로그인에 실패했어요. 잠시 후 다시 시도해주세요.";
+  }
+};
+
+const persistUserProfile = async (user: User, userType = "일반 회원") => {
+  const userRef = ref(db, `users/${user.uid}`);
+  const snapshot = await get(userRef);
+  const fallbackProfile = {
+    uid: user.uid,
+    name: user.displayName || user.email?.split("@")[0] || "Study User",
+    email: user.email || "",
+    image: user.photoURL || null,
+    userType,
+    createdAt: Date.now(),
+  };
+  const profile = snapshot.exists() ? { ...fallbackProfile, ...snapshot.val() } : fallbackProfile;
+
+  if (!snapshot.exists()) {
+    await set(userRef, profile);
+  }
+
+  await AsyncStorage.setItem("userProfile", JSON.stringify(profile));
+};
 
 /* ─────────────────────────────────────────────
    메인 컴포넌트
@@ -42,7 +88,7 @@ export default function LoginScreen() {
   const pwRef = useRef<TextInput>(null);
 
   // ③ 유효성 검사 — 이메일 형식 + 비밀번호 6자 이상
-  const isValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && password.length >= 6;
+  const isValid = emailRegex.test(email.trim()) && password.length >= 6;
 
   // ✅ Google 로그인 요청 설정
   const [request, response, promptAsync] = Google.useAuthRequest({
@@ -68,7 +114,8 @@ export default function LoginScreen() {
           }
 
           const credential = GoogleAuthProvider.credential(id_token);
-          await signInWithCredential(auth, credential);
+          const result = await signInWithCredential(auth, credential);
+          await persistUserProfile(result.user, "Google 회원");
 
           router.replace("/main");
         } catch (e) {
@@ -100,17 +147,17 @@ export default function LoginScreen() {
     }
   };
 
-  // ④ 로그인 핸들러 (API 연동 시 여기에 작성)
+  // ④ 이메일 로그인 핸들러
   const handleLogin = async () => {
     if (!isValid || loading) return;
     setErrorMsg("");
     try {
       setLoading(true);
-      // TODO: await authApi.login({ email, password });
-      await new Promise((res) => setTimeout(res, 1200)); // 임시 딜레이
+      const result = await signInWithEmailAndPassword(auth, email.trim().toLowerCase(), password);
+      await persistUserProfile(result.user);
       router.replace("/main");
-    } catch {
-      setErrorMsg("이메일 또는 비밀번호가 올바르지 않습니다.");
+    } catch (error: any) {
+      setErrorMsg(getLoginErrorMessage(error?.code));
     } finally {
       setLoading(false);
     }

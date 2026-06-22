@@ -1,6 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
+import { deleteUser, signOut } from "firebase/auth";
+import { ref, remove } from "firebase/database";
 import { useCallback, useMemo, useState } from "react";
 import {
   Alert,
@@ -16,6 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import BottomNav, { getBottomNavSpace } from "../../components/BottomNav";
 import { useMonoTheme, type MonoTheme } from "../../constants/mono";
+import { auth, db } from "../../utils/firebaseConfig";
 
 type UserProfile = {
   name?: string;
@@ -36,6 +39,7 @@ export default function SettingsScreen() {
   const [email, setEmail] = useState("user@example.com");
   const [image, setImage] = useState<string | null>(null);
   const [userType, setUserType] = useState("");
+  const [accountBusy, setAccountBusy] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -71,6 +75,74 @@ export default function SettingsScreen() {
         },
       },
     ]);
+  };
+
+  const clearLocalAccountData = async () => {
+    await AsyncStorage.multiRemove([
+      "userProfile",
+      "study_sessions",
+      "active_session",
+      "group_member_profile",
+    ]);
+  };
+
+  const handleLogout = () => {
+    Alert.alert("로그아웃", "현재 계정에서 로그아웃할까요?", [
+      { text: "취소", style: "cancel" },
+      {
+        text: "로그아웃",
+        onPress: async () => {
+          try {
+            setAccountBusy(true);
+            await signOut(auth);
+            await AsyncStorage.multiRemove(["userProfile", "active_session"]);
+            router.replace("/login");
+          } finally {
+            setAccountBusy(false);
+          }
+        },
+      },
+    ]);
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      "회원 탈퇴",
+      "계정과 저장된 사용자 정보를 삭제할까요? 이 작업은 되돌릴 수 없어요.",
+      [
+        { text: "취소", style: "cancel" },
+        {
+          text: "탈퇴하기",
+          style: "destructive",
+          onPress: async () => {
+            const user = auth.currentUser;
+
+            if (!user) {
+              await clearLocalAccountData();
+              router.replace("/login");
+              return;
+            }
+
+            try {
+              setAccountBusy(true);
+              const uid = user.uid;
+              await deleteUser(user);
+              await remove(ref(db, `users/${uid}`));
+              await clearLocalAccountData();
+              router.replace("/login");
+            } catch (error: any) {
+              if (error?.code === "auth/requires-recent-login") {
+                Alert.alert("다시 로그인 필요", "보안을 위해 다시 로그인한 뒤 회원 탈퇴를 시도해주세요.");
+              } else {
+                Alert.alert("회원 탈퇴 실패", "잠시 후 다시 시도해주세요.");
+              }
+            } finally {
+              setAccountBusy(false);
+            }
+          },
+        },
+      ],
+    );
   };
 
   return (
@@ -169,10 +241,19 @@ export default function SettingsScreen() {
         />
 
         <TouchableOpacity
-          style={styles.logoutBtn}
-          onPress={() => router.replace("/login")}
+          style={[styles.logoutBtn, accountBusy && styles.accountBtnDisabled]}
+          onPress={handleLogout}
+          disabled={accountBusy}
         >
           <Text style={styles.logoutText}>로그아웃</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.deleteAccountBtn, accountBusy && styles.accountBtnDisabled]}
+          onPress={handleDeleteAccount}
+          disabled={accountBusy}
+        >
+          <Text style={styles.deleteAccountText}>회원 탈퇴</Text>
         </TouchableOpacity>
       </ScrollView>
       <BottomNav />
@@ -254,6 +335,11 @@ const createStyles = (C: MonoTheme) =>
       backgroundColor: C.surface,
       justifyContent: "center",
       alignItems: "center",
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.16,
+      shadowRadius: 2,
+      elevation: 2,
     },
     headerTitle: {
       color: C.text,
@@ -326,14 +412,22 @@ const createStyles = (C: MonoTheme) =>
       marginTop: 6,
     },
     editBtn: {
+      minWidth: 52,
+      height: 34,
       paddingHorizontal: 12,
-      paddingVertical: 6,
       borderRadius: 999,
       backgroundColor: C.surface,
       marginLeft: 10,
       borderWidth: 1,
-      borderBottomWidth: 4,
+      borderBottomWidth: 3,
       borderColor: C.border,
+      alignItems: "center",
+      justifyContent: "center",
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.14,
+      shadowRadius: 2,
+      elevation: 2,
     },
     editText: {
       color: C.text,
@@ -351,13 +445,20 @@ const createStyles = (C: MonoTheme) =>
     row: {
       backgroundColor: C.surface,
       borderWidth: 1,
+      borderBottomWidth: 4,
       borderColor: C.border,
       borderRadius: 14,
-      padding: 16,
+      minHeight: 56,
+      paddingHorizontal: 16,
       flexDirection: "row",
       justifyContent: "space-between",
       alignItems: "center",
       marginBottom: 10,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.14,
+      shadowRadius: 2,
+      elevation: 2,
     },
     rowText: {
       color: C.text,
@@ -367,14 +468,44 @@ const createStyles = (C: MonoTheme) =>
     logoutBtn: {
       marginTop: 28,
       backgroundColor: C.surface,
-      padding: 16,
+      minHeight: 56,
       borderRadius: 16,
       alignItems: "center",
+      justifyContent: "center",
       borderWidth: 1,
+      borderBottomWidth: 4,
       borderColor: C.border,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.14,
+      shadowRadius: 2,
+      elevation: 2,
     },
     logoutText: {
       color: C.text,
       fontWeight: "700",
+    },
+    deleteAccountBtn: {
+      marginTop: 10,
+      backgroundColor: C.surface,
+      minHeight: 56,
+      borderRadius: 16,
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: 1,
+      borderBottomWidth: 4,
+      borderColor: C.border,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.14,
+      shadowRadius: 2,
+      elevation: 2,
+    },
+    deleteAccountText: {
+      color: C.text,
+      fontWeight: "800",
+    },
+    accountBtnDisabled: {
+      opacity: 0.45,
     },
   });

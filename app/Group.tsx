@@ -497,7 +497,7 @@ export default function GroupScreen() {
             <View style={s.lobbyIcon}>
               <Ionicons name="cafe-outline" size={24} color={C.textAccent} />
             </View>
-            <Text style={s.lobbyTitle}>조용한 집중석 만들기</Text>
+            <Text style={s.lobbyTitle}>S T U D Y</Text>
             <Text style={s.lobbySub}>
               초대 코드를 받은 친구만 들어오는 비공개 스터디 공간이에요.
             </Text>
