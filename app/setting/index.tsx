@@ -27,6 +27,11 @@ type UserProfile = {
   userType?: string;
 };
 
+const NOTIFICATIONS_KEY = "settings_notifications_enabled";
+const STUDY_STATUS_PUBLIC_KEY = "settings_study_status_public";
+const COMMUNITY_ACTIVITY_PUBLIC_KEY = "settings_community_activity_public";
+const APP_VERSION = "1.0.0";
+
 export default function SettingsScreen() {
   const router = useRouter();
   const { theme: C, isDark, toggleMode } = useMonoTheme();
@@ -35,6 +40,8 @@ export default function SettingsScreen() {
   const bottomSpace = getBottomNavSpace(insets.bottom);
 
   const [notifications, setNotifications] = useState(true);
+  const [studyStatusPublic, setStudyStatusPublic] = useState(true);
+  const [communityActivityPublic, setCommunityActivityPublic] = useState(false);
   const [name, setName] = useState("Study User");
   const [email, setEmail] = useState("user@example.com");
   const [image, setImage] = useState<string | null>(null);
@@ -45,13 +52,23 @@ export default function SettingsScreen() {
     useCallback(() => {
       const loadProfile = async () => {
         try {
-          const saved = await AsyncStorage.getItem("userProfile");
-          const parsed: UserProfile | null = saved ? JSON.parse(saved) : null;
+          const [saved, notificationsRaw, studyStatusRaw, communityActivityRaw] =
+            await AsyncStorage.multiGet([
+              "userProfile",
+              NOTIFICATIONS_KEY,
+              STUDY_STATUS_PUBLIC_KEY,
+              COMMUNITY_ACTIVITY_PUBLIC_KEY,
+            ]);
+          const profileRaw = saved[1];
+          const parsed: UserProfile | null = profileRaw ? JSON.parse(profileRaw) : null;
 
           setName(parsed?.name || "Study User");
           setEmail(parsed?.email || "user@example.com");
           setImage(parsed?.image || null);
           setUserType(parsed?.userType || "");
+          setNotifications(notificationsRaw[1] !== "false");
+          setStudyStatusPublic(studyStatusRaw[1] !== "false");
+          setCommunityActivityPublic(communityActivityRaw[1] === "true");
         } catch {
           setName("Study User");
           setEmail("user@example.com");
@@ -145,6 +162,32 @@ export default function SettingsScreen() {
     );
   };
 
+  const updateNotificationSetting = async (value: boolean) => {
+    setNotifications(value);
+    await AsyncStorage.setItem(NOTIFICATIONS_KEY, String(value));
+  };
+
+  const updateStudyStatusPublic = async (value: boolean) => {
+    setStudyStatusPublic(value);
+    await AsyncStorage.setItem(STUDY_STATUS_PUBLIC_KEY, String(value));
+  };
+
+  const updateCommunityActivityPublic = async (value: boolean) => {
+    setCommunityActivityPublic(value);
+    await AsyncStorage.setItem(COMMUNITY_ACTIVITY_PUBLIC_KEY, String(value));
+  };
+
+  const showStorageStatus = () => {
+    Alert.alert(
+      "저장 상태",
+      "계정 정보는 Firebase와 동기화되고, 학습 기록과 커뮤니티 임시 글은 현재 기기에 저장돼요.",
+    );
+  };
+
+  const showComingSoon = (title: string) => {
+    Alert.alert(title, "이 기능은 다음 단계에서 연결할 예정이에요.");
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.headerRow}>
@@ -195,12 +238,23 @@ export default function SettingsScreen() {
           theme={C}
         />
         <SettingRow
+          label="공개 프로필"
+          onPress={() => router.push("/setting/public-profile")}
+          styles={styles}
+          theme={C}
+        />
+        <SettingRow
           label="비밀번호 변경"
           onPress={() => router.push("/setting/password")}
           styles={styles}
           theme={C}
         />
-        <SettingRow label="연결된 로그인" onPress={() => {}} styles={styles} theme={C} />
+        <SettingRow
+          label="로그인 및 보안"
+          onPress={() => showComingSoon("로그인 및 보안")}
+          styles={styles}
+          theme={C}
+        />
 
         <Text style={styles.sectionTitle}>학습 설정</Text>
         <SettingRow
@@ -210,20 +264,44 @@ export default function SettingsScreen() {
           theme={C}
         />
         <SettingRow
-          label="집중 모드"
-          onPress={() => router.push("/setting/focus-mode")}
+          label="저장 상태"
+          onPress={showStorageStatus}
           styles={styles}
           theme={C}
         />
 
-        <Text style={styles.sectionTitle}>앱 설정</Text>
+        <Text style={styles.sectionTitle}>알림</Text>
         <SwitchRow
-          label="알림"
+          label="전체 알림"
           value={notifications}
-          onChange={setNotifications}
+          onChange={updateNotificationSetting}
           styles={styles}
           theme={C}
         />
+        <SettingRow
+          label="알림 세부 설정"
+          onPress={() => showComingSoon("알림 세부 설정")}
+          styles={styles}
+          theme={C}
+        />
+
+        <Text style={styles.sectionTitle}>개인정보</Text>
+        <SwitchRow
+          label="공부 상태 공개"
+          value={studyStatusPublic}
+          onChange={updateStudyStatusPublic}
+          styles={styles}
+          theme={C}
+        />
+        <SwitchRow
+          label="커뮤니티 활동 공개"
+          value={communityActivityPublic}
+          onChange={updateCommunityActivityPublic}
+          styles={styles}
+          theme={C}
+        />
+
+        <Text style={styles.sectionTitle}>화면</Text>
         <SwitchRow
           label="다크 모드"
           value={isDark}
@@ -231,6 +309,30 @@ export default function SettingsScreen() {
           styles={styles}
           theme={C}
         />
+
+        <Text style={styles.sectionTitle}>지원</Text>
+        <SettingRow
+          label="문의하기"
+          onPress={() => showComingSoon("문의하기")}
+          styles={styles}
+          theme={C}
+        />
+        <SettingRow
+          label="개인정보 처리방침"
+          onPress={() => showComingSoon("개인정보 처리방침")}
+          styles={styles}
+          theme={C}
+        />
+        <SettingRow
+          label="오픈소스 라이선스"
+          onPress={() => showComingSoon("오픈소스 라이선스")}
+          styles={styles}
+          theme={C}
+        />
+
+        <Text style={styles.sectionTitle}>앱 정보</Text>
+        <InfoRow label="버전" value={APP_VERSION} styles={styles} />
+        <InfoRow label="앱 이름" value="StudyNet" styles={styles} />
 
         <Text style={styles.sectionTitle}>데이터</Text>
         <SettingRow
@@ -277,6 +379,23 @@ function SettingRow({
       <Text style={styles.rowText}>{label}</Text>
       <Ionicons name="chevron-forward" size={18} color={theme.text} />
     </TouchableOpacity>
+  );
+}
+
+function InfoRow({
+  label,
+  value,
+  styles,
+}: {
+  label: string;
+  value: string;
+  styles: ReturnType<typeof createStyles>;
+}) {
+  return (
+    <View style={styles.row}>
+      <Text style={styles.rowText}>{label}</Text>
+      <Text style={styles.infoValue}>{value}</Text>
+    </View>
   );
 }
 
@@ -464,6 +583,11 @@ const createStyles = (C: MonoTheme) =>
       color: C.text,
       fontSize: 14,
       fontWeight: "600",
+    },
+    infoValue: {
+      color: C.text,
+      fontSize: 13,
+      fontWeight: "800",
     },
     logoutBtn: {
       marginTop: 28,

@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as FileSystem from "expo-file-system/legacy";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { updateProfile } from "firebase/auth";
@@ -19,6 +20,50 @@ import { useMonoTheme, type MonoTheme } from "../../constants/mono";
 import { auth, db } from "../../utils/firebaseConfig";
 
 const userTypes = ["초등학생", "중학생", "고등학생", "대학생", "취준생", "직장인"];
+
+const isRemoteImageUri = (uri: string | null) =>
+  !!uri && (uri.startsWith("http://") || uri.startsWith("https://"));
+
+const isEmbeddedImageUri = (uri: string | null) => !!uri && uri.startsWith("data:image/");
+
+const toEmbeddedImageUri = (base64: string) => `data:image/jpeg;base64,${base64}`;
+
+const normalizeProfileImage = async (uri: string) => {
+  if (isRemoteImageUri(uri) || isEmbeddedImageUri(uri)) return uri;
+
+  const base64 = await FileSystem.readAsStringAsync(uri, {
+    encoding: FileSystem.EncodingType.Base64,
+  });
+
+  return toEmbeddedImageUri(base64);
+};
+
+const getProfileSaveErrorMessage = (error: unknown) => {
+  const code = typeof error === "object" && error && "code" in error ? String(error.code) : "";
+  const message = error instanceof Error ? error.message : "";
+
+  if (message === "login-required") {
+    return "로그인 정보가 없어 프로필 사진을 업로드할 수 없어요. 다시 로그인한 뒤 시도해주세요.";
+  }
+
+  if (message === "image-read-failed") {
+    return "선택한 사진을 불러오지 못했어요. 다른 사진으로 다시 시도해주세요.";
+  }
+
+  if (code === "storage/unauthorized") {
+    return "Firebase Storage 업로드 권한이 막혀 있어요. Storage 보안 규칙을 확인해야 합니다.";
+  }
+
+  if (code === "storage/canceled") {
+    return "프로필 사진 업로드가 취소됐어요.";
+  }
+
+  if (code === "storage/retry-limit-exceeded" || code === "storage/unknown") {
+    return "프로필 사진 업로드 중 네트워크 문제가 생겼어요. 잠시 후 다시 시도해주세요.";
+  }
+
+  return "프로필을 저장하지 못했어요. 잠시 후 다시 시도해주세요.";
+};
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -50,11 +95,13 @@ export default function ProfileScreen() {
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [1, 1],
-      quality: 0.8,
+      base64: true,
+      quality: 0.35,
     });
 
     if (!result.canceled) {
-      setImage(result.assets[0].uri);
+      const asset = result.assets[0];
+      setImage(asset.base64 ? toEmbeddedImageUri(asset.base64) : asset.uri);
     }
   };
 
@@ -69,12 +116,13 @@ export default function ProfileScreen() {
       const previousProfile = saved ? JSON.parse(saved) : {};
       const currentUser = auth.currentUser;
       const uid = currentUser?.uid || previousProfile.uid;
+      const nextImage = image ? await normalizeProfileImage(image) : image;
       const profile = {
         ...previousProfile,
         uid,
         name: name.trim(),
         email: email.trim(),
-        image,
+        image: nextImage,
         userType,
         updatedAt: Date.now(),
       };
@@ -84,7 +132,7 @@ export default function ProfileScreen() {
       if (currentUser) {
         await updateProfile(currentUser, {
           displayName: profile.name,
-          photoURL: image || currentUser.photoURL,
+          ...(isRemoteImageUri(nextImage) ? { photoURL: nextImage } : {}),
         });
       }
 
@@ -93,8 +141,8 @@ export default function ProfileScreen() {
       }
 
       router.back();
-    } catch {
-      Alert.alert("저장 실패", "프로필을 저장하지 못했어요. 잠시 후 다시 시도해주세요.");
+    } catch (error) {
+      Alert.alert("저장 실패", getProfileSaveErrorMessage(error));
     }
   };
 

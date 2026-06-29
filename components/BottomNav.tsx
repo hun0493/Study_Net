@@ -8,24 +8,24 @@ import { useMonoTheme } from "../constants/mono";
 export const BOTTOM_NAV_HEIGHT = 70;
 export const BOTTOM_NAV_GAP = 12;
 
-type NavKey = "record" | "group" | "home" | "ranking" | "setting";
+type NavKey = "record" | "group" | "home" | "community" | "setting";
 
 const navItems: {
   key: NavKey;
   label: string;
   icon: keyof typeof Ionicons.glyphMap;
-  route: "/calendar" | "/Group" | "/main" | "/ranking" | "/setting";
+  route: "/calendar" | "/Group" | "/main" | "/community" | "/setting";
 }[] = [
   { key: "record", label: "기록", icon: "calendar-outline", route: "/calendar" },
   { key: "group", label: "그룹", icon: "people-outline", route: "/Group" },
   { key: "home", label: "홈", icon: "home-outline", route: "/main" },
-  { key: "ranking", label: "랭킹", icon: "trophy-outline", route: "/ranking" },
+  { key: "community", label: "소셜", icon: "chatbubbles-outline", route: "/community" },
   { key: "setting", label: "설정", icon: "settings-outline", route: "/setting" },
 ];
 
 const getActiveKey = (pathname: string): NavKey => {
   if (pathname.includes("Group")) return "group";
-  if (pathname.includes("ranking")) return "ranking";
+  if (pathname.includes("community")) return "community";
   if (pathname.includes("setting")) return "setting";
   if (pathname.includes("calendar") || pathname.includes("statistics")) return "record";
   return "home";

@@ -32,6 +32,9 @@ import { auth, db } from "../utils/firebaseConfig";
 WebBrowser.maybeCompleteAuthSession();
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const googleWebClientId = "713632998369-g276ekeqbra47uag5lttt8i5fb766mft.apps.googleusercontent.com";
+const googleAndroidClientId = "713632998369-kplb0uk05k8peh43s48l6guidgn27pl5.apps.googleusercontent.com";
+const googleIosClientId = googleWebClientId;
 
 const getLoginErrorMessage = (code?: string) => {
   switch (code) {
@@ -92,10 +95,9 @@ export default function LoginScreen() {
 
   // ✅ Google 로그인 요청 설정
   const [request, response, promptAsync] = Google.useAuthRequest({
-    webClientId:
-      "713632998369-g276ekeqbra47uag5lttt8i5fb766mft.apps.googleusercontent.com",
-    androidClientId:
-      "713632998369-kplb0uk05k8peh43s48l6guidgn27pl5.apps.googleusercontent.com",
+    webClientId: googleWebClientId,
+    androidClientId: googleAndroidClientId,
+    iosClientId: googleIosClientId,
   });
 
   // ✅ Google 로그인 응답 처리
